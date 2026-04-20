@@ -1,0 +1,8 @@
+{
+  "name": "github-ship-calendar",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --cwd server dev"
+  },
+  "devDependencies": {}
+}

@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>shipped.</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      color-scheme: dark;
+      --bg: #09090b;
+      --surface: #141416;
+      --surface-hi: #1c1c1f;
+      --text: #e4e4e7;
+      --text-sec: #a1a1aa;
+      --text-mut: #5c5c66;
+      --accent: #34d399;
+      --accent-dim: #064e3b;
+      --neg: #f87171;
+      --border: #27272a;
+      --font: 'JetBrains Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Landing ────────────────────────────── */
+    #landing {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 380px;
+      padding: 2rem;
+    }
+
+    #landing h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: -0.06em;
+      line-height: 1;
+    }
+    #landing h1 .dot { color: var(--accent); }
+
+    #landing .tagline {
+      font-size: 0.8rem;
+      color: var(--text-mut);
+      font-weight: 300;
+      margin-bottom: 1rem;
+    }
+
+    .inputs { width: 100%; display: flex; flex-direction: column; gap: 0.75rem; }
+
+    input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 400;
+      padding: 0.5rem 0;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+    input:focus { border-bottom-color: var(--accent); }
+    input::placeholder { color: var(--text-mut); font-weight: 300; }
+
+    .go-btn {
+      background: var(--text);
+      color: var(--bg);
+      border: none;
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.6rem 0;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      letter-spacing: 0.02em;
+      width: 100%;
+    }
+    .go-btn:hover { opacity: 0.8; }
+    .go-btn:disabled { opacity: 0.4; cursor: default; }
+
+    #landing-error {
+      color: var(--neg);
+      font-size: 0.75rem;
+      font-weight: 400;
+      display: none;
+      text-align: center;
+    }
+
+    /* ── Dashboard ─────────────────────────── */
+    #dashboard {
+      width: 100%;
+      max-width: 860px;
+      padding: 2rem;
+      display: none;
+    }
+
+    .back-link {
+      border: none;
+      background: none;
+      font-family: var(--font);
+      font-size: 0.7rem;
+      color: var(--text-mut);
+      cursor: pointer;
+      font-weight: 300;
+      transition: color 0.15s;
+      display: inline-block;
+      margin-bottom: 2rem;
+      user-select: none;
+    }
+    .back-link:hover { color: var(--text-sec); }
+
+    /* Profile */
+    .profile {
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      margin-bottom: 2rem;
+    }
+    .profile img {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      opacity: 0.9;
+    }
+    .profile .name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .profile .login {
+      font-size: 0.75rem;
+      color: var(--text-mut);
+      font-weight: 300;
+    }
+
+    /* Period selector */
+    .periods {
+      display: flex;
+      gap: 0.125rem;
+      margin-bottom: 1.25rem;
+      align-items: center;
+      flex-wrap: wrap;
+      position: relative;
+    }
+    .year-divider {
+      width: 1px;
+      height: 14px;
+      background: var(--border);
+      margin: 0 0.3rem;
+      flex-shrink: 0;
+    }
+    .year-more-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-mut);
+      font-family: var(--font);
+      font-size: 0.65rem;
+      font-weight: 400;
+      padding: 0.35rem 0.5rem;
+      cursor: pointer;
+      transition: color 0.12s, background 0.12s;
+      border-radius: 2px;
+      letter-spacing: 0.04em;
+    }
+    .year-more-btn:hover { color: var(--text-sec); }
+    .year-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.3rem 0;
+      z-index: 50;
+      min-width: 80px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .year-dropdown.show { display: block; }
+    .year-dropdown .dd-btn {
+      display: block;
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-sec);
+      font-family: var(--font);
+      font-size: 0.6rem;
+      font-weight: 400;
+      padding: 0.3rem 0.6rem;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .year-dropdown .dd-btn:hover { background: var(--surface); color: var(--text); }
+    .year-dropdown .dd-btn.active { color: var(--accent); font-weight: 600; }
+    .period-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-mut);
+      font-family: var(--font);
+      font-size: 0.65rem;
+      font-weight: 400;
+      padding: 0.35rem 0.6rem;
+      cursor: pointer;
+      transition: color 0.12s, background 0.12s;
+      border-radius: 2px;
+      letter-spacing: 0.04em;
+    }
+    .period-btn:hover { color: var(--text-sec); }
+    .period-btn.active { color: var(--text); background: var(--surface); }
+
+    /* Custom range */
+    .custom-range {
+      display: none;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .custom-range.show { display: flex; }
+    .custom-range input[type="date"] {
+      font-size: 0.65rem;
+      padding: 0.2rem 0.4rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      background: transparent;
+      font-family: var(--font);
+      max-width: 140px;
+    }
+    .custom-range input[type="date"]:focus { border-bottom-color: var(--accent); }
+    .custom-range .arrow { color: var(--text-mut); font-size: 0.65rem; font-weight: 300; }
+    .custom-range .apply-btn {
+      background: var(--surface);
+      border: none;
+      color: var(--text-sec);
+      font-family: var(--font);
+      font-size: 0.6rem;
+      font-weight: 500;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: background 0.12s, color 0.12s;
+    }
+    .custom-range .apply-btn:hover { background: var(--surface-hi); color: var(--text); }
+    .range-error {
+      color: var(--neg);
+      font-size: 0.6rem;
+      font-weight: 400;
+      display: none;
+    }
+
+    /* Graph summary */
+    .graph-summary {
+      font-size: 0.7rem;
+      color: var(--text-sec);
+      font-weight: 400;
+      margin-bottom: 0.5rem;
+    }
+    .graph-summary .count { color: var(--text); font-weight: 700; }
+
+    /* Contribution graph */
+    .graph-wrap {
+      overflow-x: auto;
+      overflow-y: hidden;
+      margin-bottom: 2.5rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    .graph-wrap svg { display: block; }
+    .graph-wrap .cell { transition: opacity 0.08s; cursor: crosshair; }
+    .graph-wrap .cell:hover { opacity: 0.55; }
+    .mlbl, .dlbl {
+      fill: var(--text-mut);
+      font-family: var(--font);
+      font-size: 8.5px;
+      font-weight: 300;
+    }
+
+    /* Tooltip */
+    .tip {
+      position: fixed;
+      background: var(--surface-hi);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.65rem;
+      font-weight: 400;
+      padding: 0.3rem 0.55rem;
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 100;
+      white-space: nowrap;
+      display: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    /* Radar chart section */
+    .radar-section {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      margin-bottom: 2.5rem;
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .radar-wrap {
+      flex-shrink: 0;
+    }
+    .radar-wrap svg { display: block; }
+    .radar-labels {
+      fill: var(--text-mut);
+      font-family: var(--font);
+      font-size: 8px;
+      font-weight: 400;
+    }
+    .radar-values {
+      fill: var(--text-sec);
+      font-family: var(--font);
+      font-size: 7.5px;
+      font-weight: 600;
+    }
+
+    .radar-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .radar-details .detail-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .radar-details .detail-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .radar-details .detail-name {
+      font-size: 0.65rem;
+      color: var(--text-sec);
+      font-weight: 400;
+      min-width: 70px;
+    }
+    .radar-details .detail-bar-wrap {
+      width: 80px;
+      height: 3px;
+      background: var(--surface-hi);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .radar-details .detail-bar {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .radar-details .detail-num {
+      font-size: 0.65rem;
+      color: var(--text);
+      font-weight: 600;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    /* Stats row */
+    .stats-row {
+      display: flex;
+      gap: 3rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+    .stat { display: flex; flex-direction: column; gap: 0.2rem; }
+    .stat .num {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+    .stat .num.green { color: var(--accent); }
+    .stat .num.red { color: var(--neg); opacity: 0.85; }
+    .stat .lbl {
+      font-size: 0.55rem;
+      color: var(--text-mut);
+      font-weight: 300;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    /* LOC loading */
+    .loc-loading {
+      font-size: 0.5rem;
+      color: var(--accent);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    /* Breakdown */
+    .breakdown {
+      display: flex;
+      gap: 2.5rem;
+      flex-wrap: wrap;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .breakdown .stat .num {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    /* LOC note */
+    .loc-note {
+      font-size: 0.55rem;
+      color: var(--text-mut);
+      font-weight: 300;
+      margin-top: 1rem;
+      line-height: 1.5;
+    }
+
+    /* Pulse loading */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+    .pulsing { animation: pulse 1.4s ease-in-out infinite; }
+
+    /* Fade in */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(8px); }
+      to { opacity:1; transform:translateY(0); }
+    }
+    .fade-in { animation: fadeUp 0.4s ease-out both; }
+    .fade-d1 { animation-delay: 0.05s; }
+    .fade-d2 { animation-delay: 0.1s; }
+    .fade-d3 { animation-delay: 0.15s; }
+    .fade-d4 { animation-delay: 0.2s; }
+    .fade-d5 { animation-delay: 0.25s; }
+    .fade-d6 { animation-delay: 0.3s; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      #landing { padding: 1.5rem; }
+      #landing h1 { font-size: 2.75rem; }
+      #dashboard { padding: 1.5rem; }
+      .stats-row { gap: 2rem; }
+      .stat .num { font-size: 1.35rem; }
+      .breakdown { gap: 1.5rem; }
+      .radar-section { flex-direction: column; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Landing ═══ -->
+  <div id="landing">
+    <h1>shipped<span class="dot">.</span></h1>
+    <p class="tagline">see what they've shipped</p>
+    <div class="inputs">
+      <input id="inp-user" placeholder="github username" autocomplete="off" spellcheck="false" />
+    </div>
+    <button class="go-btn" id="btn-go">go</button>
+    <p id="landing-error"></p>
+  </div>
+
+  <!-- ═══ Dashboard ═══ -->
+  <div id="dashboard">
+    <button class="back-link" id="btn-back">← shipped.</button>
+
+    <div class="profile fade-in" id="profile"></div>
+
+    <div class="periods fade-in fade-d1" id="periods">
+      <button class="period-btn" data-p="1D">1D</button>
+      <button class="period-btn" data-p="1W">1W</button>
+      <button class="period-btn" data-p="1M">1M</button>
+      <button class="period-btn" data-p="3M">3M</button>
+      <button class="period-btn" data-p="6M">6M</button>
+      <button class="period-btn active" data-p="1Y">1Y</button>
+      <button class="period-btn" data-p="custom">CUSTOM</button>
+      <span class="year-divider" id="year-divider" style="display:none"></span>
+      <span id="year-buttons"></span>
+      <button class="year-more-btn" id="year-more" style="display:none">▼ more</button>
+      <div class="year-dropdown" id="year-dropdown"></div>
+    </div>
+
+    <div class="custom-range" id="custom-range">
+      <input type="date" id="inp-from" />
+      <span class="arrow">→</span>
+      <input type="date" id="inp-to" />
+      <button class="apply-btn" id="btn-apply">apply</button>
+      <span class="range-error" id="range-error"></span>
+    </div>
+
+    <div class="graph-summary fade-in fade-d2" id="graph-summary"></div>
+
+    <div class="graph-wrap fade-in fade-d2" id="graph-wrap"></div>
+
+    <!-- Radar chart -->
+    <div class="radar-section fade-in fade-d3" id="radar-section">
+      <div class="radar-wrap" id="radar-wrap"></div>
+      <div class="radar-details" id="radar-details"></div>
+    </div>
+
+    <div class="stats-row fade-in fade-d4">
+      <div class="stat">
+        <span class="num" id="s-total">—</span>
+        <span class="lbl">contributions</span>
+      </div>
+      <div class="stat">
+        <span class="num green" id="s-add">—</span>
+        <span class="lbl">lines shipped <span class="loc-loading" id="loc-loading"></span></span>
+      </div>
+      <div class="stat">
+        <span class="num red" id="s-del">—</span>
+        <span class="lbl">lines removed</span>
+      </div>
+    </div>
+
+    <div class="breakdown fade-in fade-d5">
+      <div class="stat">
+        <span class="num" id="s-commits">—</span>
+        <span class="lbl">commits</span>
+      </div>
+      <div class="stat">
+        <span class="num" id="s-prs">—</span>
+        <span class="lbl">pull requests</span>
+      </div>
+      <div class="stat">
+        <span class="num" id="s-issues">—</span>
+        <span class="lbl">issues</span>
+      </div>
+      <div class="stat">
+        <span class="num" id="s-reviews">—</span>
+        <span class="lbl">reviews</span>
+      </div>
+      <div class="stat">
+        <span class="num" id="s-repos">—</span>
+        <span class="lbl">repos</span>
+      </div>
+    </div>
+
+    <p class="loc-note fade-in fade-d6" id="loc-note">lines shipped/removed counts commits across all contributed repositories (owned + others').</p>
+  </div>
+
+  <!-- Tooltip -->
+  <div class="tip" id="tip"></div>
+
+<script>
+// ─── State ──────────────────────────────────────
+const S = {
+  user: '',
+  period: '1Y',
+  profile: null,
+  lastData: null,
+  createdAt: null,   // account creation date from API
+  accountYear: null, // year the account was created
+};
+
+// ─── API ─────────────────────────────────────────
+const API = '';  // same origin — served by the backend
+
+async function fetchUser(user) {
+  const r = await fetch(`${API}/api/user/${user}`);
+  if (!r.ok) throw new Error(r.status === 404 ? 'user not found' : `API error ${r.status}`);
+  return r.json();
+}
+
+async function fetchContributions(user, from, to) {
+  const params = new URLSearchParams({ from, to });
+  const r = await fetch(`${API}/api/user/${user}/stats?${params}`);
+  if (!r.ok) throw new Error(r.status === 404 ? 'user not found' : `API error ${r.status}`);
+  return r.json();
+}
+
+async function fetchDefaultContributions(user) {
+  const r = await fetch(`${API}/api/user/${user}/contributions`);
+  if (!r.ok) throw new Error(r.status === 404 ? 'user not found' : `API error ${r.status}`);
+  return r.json();
+}
+
+// ─── Period helpers ──────────────────────────────
+function periodDates(p) {
+  const now = new Date();
+  const to = now.toISOString();
+  if (p === 'custom') {
+    const f = document.getElementById('inp-from').value;
+    const t = document.getElementById('inp-to').value;
+    return {
+      from: f ? new Date(f + 'T00:00:00Z').toISOString() : null,
+      to: t ? new Date(t + 'T23:59:59Z').toISOString() : to,
+    };
+  }
+  const days = { '1D':1, '1W':7, '1M':30, '3M':90, '6M':180, '1Y':365 }[p] || 365;
+  return { from: new Date(now.getTime() - days * 864e5).toISOString(), to };
+}
+
+function periodLabel(p) {
+  if (p && p.startsWith('year:')) {
+    const yr = p.slice(5);
+    return yr;
+  }
+  return {
+    '1D': 'today',
+    '1W': 'this week',
+    '1M': 'this month',
+    '3M': 'the last 3 months',
+    '6M': 'the last 6 months',
+    '1Y': 'the last year',
+    'custom': 'custom range',
+  }[p] || 'the last year';
+}
+
+// ─── Color for contribution level ────────────────
+const LEVEL_COLORS = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'];
+
+// ─── Render ──────────────────────────────────────
+function renderProfile(p) {
+  const el = document.getElementById('profile');
+  el.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = p.avatarUrl; img.alt = '';
+  const info = document.createElement('div');
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'name'; nameDiv.textContent = p.name || p.login;
+  const loginDiv = document.createElement('div');
+  loginDiv.className = 'login'; loginDiv.textContent = '@' + p.login;
+  info.append(nameDiv, loginDiv);
+  el.append(img, info);
+}
+
+function renderGraph(calendar) {
+  const wrap = document.getElementById('graph-wrap');
+  if (!calendar || calendar.length === 0) return;
+
+  // Calculate the day-of-week offset for the first date
+  // JS getDay(): 0=Sun, 1=Mon, ..., 6=Sat
+  // Our grid rows: 0=Sun, 1=Mon, ..., 6=Sat
+  const firstDay = new Date(calendar[0].date + 'T00:00:00Z');
+  const firstDow = firstDay.getUTCDay(); // 0=Sunday
+
+  // Pad the start so the first week aligns to the correct column
+  // We need to group into weeks starting on Sunday
+  const padded = [];
+  for (let i = 0; i < firstDow; i++) {
+    padded.push(null); // empty padding cell
+  }
+  padded.push(...calendar);
+
+  // Group into weeks (7 days each)
+  const weeks = [];
+  for (let i = 0; i < padded.length; i += 7) {
+    weeks.push(padded.slice(i, i + 7));
+  }
+
+  const cs = 10, gap = 3, pitch = cs + gap;
+  const lw = 28, lh = 16;
+  const w = lw + weeks.length * pitch;
+  const h = lh + 7 * pitch;
+
+  let s = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">`;
+
+  const mnames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let lastM = -1;
+  weeks.forEach((wk, wi) => {
+    if (!wk[0]) return;
+    const m = new Date(wk[0].date + 'T00:00:00Z').getUTCMonth();
+    if (m !== lastM) {
+      s += `<text x="${lw + wi * pitch}" y="11" class="mlbl">${mnames[m]}</text>`;
+      lastM = m;
+    }
+  });
+
+  ['','Mon','','Wed','','Fri',''].forEach((lb, i) => {
+    if (lb) s += `<text x="0" y="${lh + i * pitch + cs}" class="dlbl">${lb}</text>`;
+  });
+
+  weeks.forEach((wk, wi) => {
+    wk.forEach((d, di) => {
+      if (!d) return;
+      const x = lw + wi * pitch;
+      const y = lh + di * pitch;
+      const color = LEVEL_COLORS[d.level] || LEVEL_COLORS[0];
+      s += `<rect x="${x}" y="${y}" width="${cs}" height="${cs}" rx="2" ry="2" fill="${color}" data-date="${d.date}" data-cnt="${d.count}" class="cell"/>`;
+    });
+  });
+
+  s += '</svg>';
+  wrap.innerHTML = s;
+
+  wrap.querySelectorAll('.cell').forEach(el => {
+    el.addEventListener('mouseenter', onCellEnter);
+    el.addEventListener('mousemove', onCellMove);
+    el.addEventListener('mouseleave', onCellLeave);
+  });
+}
+
+function renderSummary(data) {
+  const el = document.getElementById('graph-summary');
+  const total = data.totalContributions;
+  const label = periodLabel(S.period);
+  el.innerHTML = `<span class="count">${total.toLocaleString()}</span> contributions ${label}`;
+}
+
+function animateNum(id, target) {
+  const el = document.getElementById(id);
+  if (!target && target !== 0) { el.textContent = '—'; return; }
+  if (target === 0) { el.textContent = '0'; return; }
+  const dur = 420;
+  const t0 = performance.now();
+  (function tick(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(target * e).toLocaleString();
+    if (p < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+function renderBreakdown(data) {
+  animateNum('s-commits', data.totalCommits);
+  animateNum('s-prs', data.totalPRs);
+  animateNum('s-issues', data.totalIssues);
+  animateNum('s-reviews', data.totalReviews);
+  animateNum('s-repos', data.publicRepos);
+}
+
+// ─── Radar chart ──────────────────────────────────
+const RADAR_AXES = [
+  { key: 'totalCommits', label: 'commits', color: '#34d399' },
+  { key: 'totalPRs', label: 'pull requests', color: '#60a5fa' },
+  { key: 'totalIssues', label: 'issues', color: '#fbbf24' },
+  { key: 'totalReviews', label: 'reviews', color: '#c084fc' },
+];
+
+function renderRadar(data) {
+  const wrap = document.getElementById('radar-wrap');
+  const details = document.getElementById('radar-details');
+
+  const values = RADAR_AXES.map(a => data[a.key] || 0);
+  const maxVal = Math.max(...values, 1);
+
+  const size = 140;
+  const cx = size / 2, cy = size / 2;
+  const r = 52;
+  const n = RADAR_AXES.length;
+
+  const pts = values.map((v, i) => {
+    const norm = v / maxVal;
+    const angle = (i * 2 * Math.PI / n) - Math.PI / 2;
+    return {
+      x: cx + norm * r * Math.cos(angle),
+      y: cy + norm * r * Math.sin(angle),
+    };
+  });
+  const polyStr = pts.map(p => `${p.x},${p.y}`).join(' ');
+
+  let s = `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">`;
+
+  [0.25, 0.5, 0.75, 1].forEach(scale => {
+    const guidePts = [];
+    for (let i = 0; i < n; i++) {
+      const angle = (i * 2 * Math.PI / n) - Math.PI / 2;
+      guidePts.push(`${cx + scale * r * Math.cos(angle)},${cy + scale * r * Math.sin(angle)}`);
+    }
+    s += `<polygon points="${guidePts.join(' ')}" fill="none" stroke="#27272a" stroke-width="0.5"/>`;
+  });
+
+  for (let i = 0; i < n; i++) {
+    const angle = (i * 2 * Math.PI / n) - Math.PI / 2;
+    const ex = cx + r * Math.cos(angle);
+    const ey = cy + r * Math.sin(angle);
+    s += `<line x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}" stroke="#27272a" stroke-width="0.5"/>`;
+  }
+
+  s += `<polygon points="${polyStr}" fill="rgba(52,211,153,0.12)" stroke="#34d399" stroke-width="1.5"/>`;
+
+  pts.forEach((p, i) => {
+    s += `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${RADAR_AXES[i].color}"/>`;
+  });
+
+  s += '</svg>';
+  wrap.innerHTML = s;
+
+  details.innerHTML = '';
+  RADAR_AXES.forEach((a, i) => {
+    const v = values[i];
+    const pct = maxVal > 0 ? (v / maxVal) * 100 : 0;
+    const row = document.createElement('div');
+    row.className = 'detail-row';
+    row.innerHTML = `
+      <span class="detail-dot" style="background:${a.color}"></span>
+      <span class="detail-name">${a.label}</span>
+      <span class="detail-bar-wrap"><span class="detail-bar" style="width:${pct}%;background:${a.color}"></span></span>
+      <span class="detail-num">${v.toLocaleString()}</span>
+    `;
+    details.appendChild(row);
+  });
+}
+
+// ─── Tooltip ──────────────────────────────────────
+const tip = document.getElementById('tip');
+
+function onCellEnter(e) {
+  const el = e.target;
+  const date = el.getAttribute('data-date');
+  const cnt = +el.getAttribute('data-cnt');
+  const d = new Date(date + 'T00:00:00Z');
+  const fmt = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'UTC' });
+  const txt = cnt === 1 ? '1 contribution' : `${cnt} contributions`;
+  tip.textContent = `${txt} on ${fmt}`;
+  tip.style.display = 'block';
+  positionTip(el);
+}
+
+function onCellMove(e) {
+  tip.style.left = `${e.clientX - tip.offsetWidth / 2}px`;
+  tip.style.top = `${e.clientY - tip.offsetHeight - 10}px`;
+}
+
+function onCellLeave() { tip.style.display = 'none'; }
+
+function positionTip(el) {
+  const r = el.getBoundingClientRect();
+  tip.style.left = `${r.left + r.width / 2 - tip.offsetWidth / 2}px`;
+  tip.style.top = `${r.top - tip.offsetHeight - 8}px`;
+}
+
+// ─── Main load ───────────────────────────────────
+function renderYearButtons(createdAt) {
+  if (!createdAt) return;
+  const createdYear = new Date(createdAt).getUTCFullYear();
+  S.accountYear = createdYear;
+  const currentYear = new Date().getFullYear();
+
+  // Build list of years from current year down to account creation year
+  const years = [];
+  for (let y = currentYear; y >= createdYear; y--) {
+    years.push(y);
+  }
+
+  if (years.length <= 1) return; // no year buttons needed if only current year
+
+  const divider = document.getElementById('year-divider');
+  divider.style.display = 'inline-block';
+
+  // Show the most recent 3 years as inline buttons, rest in dropdown
+  const INLINE_COUNT = 3;
+  const inlineYears = years.slice(0, INLINE_COUNT);
+  const dropdownYears = years.slice(INLINE_COUNT);
+
+  const btnSpan = document.getElementById('year-buttons');
+  btnSpan.innerHTML = '';
+  inlineYears.forEach(y => {
+    const btn = document.createElement('button');
+    btn.className = 'period-btn';
+    btn.dataset.p = `year:${y}`;
+    btn.textContent = y;
+    btn.addEventListener('click', () => changePeriod(`year:${y}`));
+    btnSpan.appendChild(btn);
+  });
+
+  const moreBtn = document.getElementById('year-more');
+  const dropdown = document.getElementById('year-dropdown');
+  if (dropdownYears.length > 0) {
+    moreBtn.style.display = 'inline-block';
+    dropdown.innerHTML = '';
+    dropdownYears.forEach(y => {
+      const btn = document.createElement('button');
+      btn.className = 'dd-btn';
+      btn.dataset.p = `year:${y}`;
+      btn.textContent = y;
+      btn.addEventListener('click', () => {
+        dropdown.classList.remove('show');
+        changePeriod(`year:${y}`);
+      });
+      dropdown.appendChild(btn);
+    });
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle('show');
+    };
+  } else {
+    moreBtn.style.display = 'none';
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', () => {
+  document.getElementById('year-dropdown').classList.remove('show');
+});
+
+async function load() {
+  const user = document.getElementById('inp-user').value.trim();
+  const errEl = document.getElementById('landing-error');
+
+  if (!user) {
+    errEl.textContent = 'enter a username';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  errEl.style.display = 'none';
+  const btn = document.getElementById('btn-go');
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  S.user = user;
+  S.period = '1Y';
+
+  try {
+    const [profile, contrib] = await Promise.all([
+      fetchUser(user),
+      fetchDefaultContributions(user),
+    ]);
+
+    S.profile = profile;
+    S.lastData = contrib;
+    S.createdAt = profile.createdAt || contrib.createdAt;
+
+    document.getElementById('landing').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+    renderProfile({ ...profile, avatarUrl: contrib.avatarUrl || profile.avatarUrl });
+    renderYearButtons(S.createdAt);
+    renderSummary(contrib);
+    renderGraph(contrib.calendar);
+    renderRadar(contrib);
+    animateNum('s-total', contrib.totalContributions);
+    animateNum('s-add', contrib.totalLinesAdded);
+    animateNum('s-del', contrib.totalLinesDeleted);
+    renderBreakdown(contrib);
+
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'go';
+  }
+}
+
+// ─── Period change ───────────────────────────────
+function yearDates(yearStr) {
+  const year = parseInt(yearStr, 10);
+  const now = new Date();
+  const isCurrentYear = year === now.getUTCFullYear();
+  return {
+    from: `${year}-01-01T00:00:00Z`,
+    to: isCurrentYear ? now.toISOString() : `${year}-12-31T23:59:59Z`,
+  };
+}
+
+function updateActivePeriod(p) {
+  // Update period-btn active states
+  document.querySelectorAll('.period-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.p === p)
+  );
+  // Update dropdown active states
+  document.querySelectorAll('#year-dropdown .dd-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.p === p)
+  );
+}
+
+async function changePeriod(p) {
+  S.period = p;
+  updateActivePeriod(p);
+  document.getElementById('custom-range').classList.toggle('show', p === 'custom');
+  if (p === 'custom') {
+    document.getElementById('range-error').style.display = 'none';
+    return;
+  }
+
+  const graphWrap = document.getElementById('graph-wrap');
+  graphWrap.style.opacity = '0.4';
+  graphWrap.style.transition = 'opacity 0.15s';
+
+  // Show LOC as loading
+  document.getElementById('s-add').classList.add('pulsing');
+  document.getElementById('s-del').classList.add('pulsing');
+  document.getElementById('loc-loading').textContent = 'computing…';
+
+  try {
+    let contrib;
+    if (p === '1Y') {
+      contrib = await fetchDefaultContributions(S.user);
+    } else if (p.startsWith('year:')) {
+      const { from, to } = yearDates(p.slice(5));
+      contrib = await fetchContributions(S.user, from, to);
+    } else {
+      const { from, to } = periodDates(p);
+      contrib = await fetchContributions(S.user, from, to);
+    }
+
+    S.lastData = contrib;
+    renderSummary(contrib);
+    renderGraph(contrib.calendar);
+    renderRadar(contrib);
+    graphWrap.style.opacity = '1';
+    animateNum('s-total', contrib.totalContributions);
+    animateNum('s-add', contrib.totalLinesAdded);
+    animateNum('s-del', contrib.totalLinesDeleted);
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = '';
+    renderBreakdown(contrib);
+  } catch (err) {
+    graphWrap.style.opacity = '1';
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = '';
+    console.error(err);
+  }
+}
+
+async function applyCustom() {
+  const f = document.getElementById('inp-from').value;
+  const t = document.getElementById('inp-to').value;
+  if (!f || !t) return;
+
+  const fDate = new Date(f);
+  const tDate = new Date(t);
+  const errEl = document.getElementById('range-error');
+  if (fDate > tDate) {
+    errEl.textContent = 'start must be before end'; errEl.style.display = 'block'; return;
+  }
+  const diffDays = (tDate - fDate) / 864e5;
+  if (diffDays > 366) {
+    errEl.textContent = 'range cannot exceed 1 year'; errEl.style.display = 'block'; return;
+  }
+  errEl.style.display = 'none';
+
+  S.period = 'custom';
+  updateActivePeriod('custom');
+
+  const graphWrap = document.getElementById('graph-wrap');
+  graphWrap.style.opacity = '0.4';
+  graphWrap.style.transition = 'opacity 0.15s';
+
+  document.getElementById('s-add').classList.add('pulsing');
+  document.getElementById('s-del').classList.add('pulsing');
+  document.getElementById('loc-loading').textContent = 'computing…';
+
+  const { from, to } = periodDates('custom');
+  try {
+    const contrib = await fetchContributions(S.user, from, to);
+    S.lastData = contrib;
+    renderSummary(contrib);
+    renderGraph(contrib.calendar);
+    renderRadar(contrib);
+    graphWrap.style.opacity = '1';
+    animateNum('s-total', contrib.totalContributions);
+    animateNum('s-add', contrib.totalLinesAdded);
+    animateNum('s-del', contrib.totalLinesDeleted);
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = '';
+    renderBreakdown(contrib);
+  } catch (err) {
+    graphWrap.style.opacity = '1';
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = '';
+    console.error(err);
+  }
+}
+
+// ─── Events ──────────────────────────────────────
+document.getElementById('btn-go').addEventListener('click', load);
+document.getElementById('inp-user').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+
+document.querySelectorAll('.period-btn').forEach(b => {
+  b.addEventListener('click', () => changePeriod(b.dataset.p));
+});
+
+document.getElementById('btn-apply').addEventListener('click', applyCustom);
+document.getElementById('btn-back').addEventListener('click', () => {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('landing').style.display = 'flex';
+  ['s-total','s-add','s-del','s-commits','s-prs','s-issues','s-reviews','s-repos'].forEach(id => {
+    document.getElementById(id).textContent = '—';
+  });
+  document.getElementById('radar-wrap').innerHTML = '';
+  document.getElementById('radar-details').innerHTML = '';
+  // Reset year buttons
+  document.getElementById('year-buttons').innerHTML = '';
+  document.getElementById('year-divider').style.display = 'none';
+  document.getElementById('year-more').style.display = 'none';
+  document.getElementById('year-dropdown').innerHTML = '';
+  S.createdAt = null;
+  S.accountYear = null;
+});
+</script>
+
+</body>
+</html>
