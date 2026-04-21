@@ -54,6 +54,17 @@
       line-height: 1;
     }
     #landing h1 .dot { color: var(--accent); }
+    #landing h1 {
+      cursor: default;
+      transition: filter 0.2s ease, transform 0.2s ease;
+    }
+    #landing h1:hover {
+      filter: drop-shadow(0 0 8px rgba(228, 228, 231, 0.15));
+      transform: scale(1.02);
+    }
+    #landing h1:hover .dot {
+      filter: drop-shadow(0 0 6px currentColor);
+    }
  
     #landing .tagline {
       font-size: 0.8rem;
