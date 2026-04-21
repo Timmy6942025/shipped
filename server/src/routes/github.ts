@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUser, getUserContributions, getUserRepos } from '../services/github.js';
+import { getUser, getUserContributions, getUserRepos, getOrgContributions } from '../services/github.js';
 import { validateUsername } from '../middleware/validate.js';
 
 const router = Router();
@@ -24,9 +24,17 @@ router.get('/user/:username', validateUsername, async (req, res, next) => {
 // GET /api/user/:username/contributions — 12-month calendar + totals
 router.get('/user/:username/contributions', validateUsername, async (req, res, next) => {
   try {
-    const data = await getUserContributions(req.params.username as string);
-    // Also include createdAt from user profile for year-by-year navigation
-    const user = await getUser(req.params.username as string);
+    const username = req.params.username as string;
+    const forceRefresh = req.query.refresh === 'true';
+    
+    // Check if this is an organization
+    const user = await getUser(username);
+    if (user.type === 'Organization') {
+      const data = await getOrgContributions(username, undefined, undefined, forceRefresh);
+      return res.json({ ...data, createdAt: user.created_at });
+    }
+    
+    const data = await getUserContributions(username, undefined, undefined, forceRefresh);
     res.json({ ...data, createdAt: user.created_at });
   } catch (err) {
     next(err);
@@ -36,16 +44,24 @@ router.get('/user/:username/contributions', validateUsername, async (req, res, n
 // GET /api/user/:username/stats — period stats for competition
 router.get('/user/:username/stats', validateUsername, async (req, res, next) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, refresh } = req.query;
     if (!from || !to) {
       return res.status(400).json({ error: 'Missing required query parameters: from and to (ISO dates)' });
     }
     
+    const username = req.params.username as string;
     const fromDate = from as string;
     const toDate = to as string;
-    const data = await getUserContributions(req.params.username as string, fromDate, toDate);
-    // Also include createdAt from user profile for year-by-year navigation
-    const user = await getUser(req.params.username as string);
+    const forceRefresh = refresh === 'true';
+    
+    // Check if this is an organization
+    const user = await getUser(username);
+    if (user.type === 'Organization') {
+      const data = await getOrgContributions(username, fromDate, toDate, forceRefresh);
+      return res.json({ ...data, createdAt: user.created_at });
+    }
+    
+    const data = await getUserContributions(username, fromDate, toDate, forceRefresh);
     res.json({ ...data, createdAt: user.created_at });
   } catch (err) {
     next(err);

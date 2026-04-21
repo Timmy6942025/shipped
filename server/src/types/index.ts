@@ -14,15 +14,33 @@ export interface UserStats {
   avatarUrl: string;
   publicRepos: number;
   followers: number;
+  isOrganization?: boolean; // true when the login is a GitHub org, not a user
   totalContributions: number;
   totalCommits: number;
   totalPRs: number;
   totalIssues: number;
   totalReviews: number;
+  totalDiscussions: number;
+  totalNewRepos: number;
+  totalPrivateActivity: number;
   totalLinesAdded: number;
   totalLinesDeleted: number;
+  starPower: number; // Average stars of repos contributed to
+  prMergeRate: number; // Percentage
+  reviewDepth: number; // Reviews per PR ratio
+  languages: Array<{ name: string; percentage: number }>;
+  productiveHours: number[]; // 24-hour histogram
+  contributedRepos: Array<{
+    nameWithOwner: string;
+    contributionCount: number;
+    stargazerCount: number;
+    primaryLanguage: string | null;
+    description: string | null;
+    licenseSpdxId: string | null;
+    updatedAt: string;
+  }>;
   calendar: ContributionDay[];
-  createdAt?: string; // added by route handler from user profile
+  createdAt?: string;
 }
 
 // Competition configuration (encoded in URL for sharing)

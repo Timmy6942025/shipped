@@ -87,6 +87,14 @@ export class Cache {
 
 export const cache = new Cache();
 
+/** Bump this when cached data shapes change to invalidate all stale entries.
+ *  Versioned key families (use s${CACHE_SCHEMA_VERSION}):
+ *    github:contributions, github:commit-loc, github:lines-shipped
+ *  Unversioned (stable shapes):
+ *    github:user, github:repos, github:commit-stats
+ */
+export const CACHE_SCHEMA_VERSION = 4;
+
 // TTL constants
 export const TTL = {
   CONTRIBUTIONS: 5 * 60 * 1000,  // 5 minutes

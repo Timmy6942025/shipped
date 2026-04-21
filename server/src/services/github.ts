@@ -1,12 +1,13 @@
 import { GITHUB_TOKEN } from '../config.js';
-import { cache, TTL } from './cache.js';
+import { cache, TTL, CACHE_SCHEMA_VERSION } from './cache.js';
 import type {
   GitHubUser,
   GitHubRepo,
   ContributionsData,
+  OrganizationData,
   PRContributionsPageData,
 } from '../types/github.js';
-import type { UserStats } from '../types/index.js';
+import type { UserStats, ContributionDay } from '../types/index.js';
 
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
 const GITHUB_REST_URL = 'https://api.github.com';
@@ -39,12 +40,38 @@ const CONTRIBUTIONS_QUERY = `
         totalPullRequestContributions
         totalIssueContributions
         totalPullRequestReviewContributions
-        commitContributionsByRepository(maxRepositories: 100) {
-          repository { nameWithOwner }
+        totalRepositoryContributions
+        restrictedContributionsCount
+        commitContributionsByRepository(maxRepositories: 50) {
+          repository { 
+            nameWithOwner 
+            stargazerCount
+            description
+            updatedAt
+            licenseInfo { spdxId name }
+            languages(first: 5, orderBy: { field: SIZE, direction: DESC }) {
+              edges {
+                size
+                node { name }
+              }
+            }
+          }
           contributions { totalCount }
         }
-        pullRequestContributionsByRepository(maxRepositories: 100) {
-          repository { nameWithOwner }
+        pullRequestContributionsByRepository(maxRepositories: 50) {
+          repository { 
+            nameWithOwner 
+            stargazerCount
+            description
+            updatedAt
+            licenseInfo { spdxId name }
+            languages(first: 5, orderBy: { field: SIZE, direction: DESC }) {
+              edges {
+                size
+                node { name }
+              }
+            }
+          }
           contributions { totalCount }
         }
         pullRequestContributions(first: 100) {
@@ -54,9 +81,46 @@ const CONTRIBUTIONS_QUERY = `
           }
           nodes {
             pullRequest {
+              createdAt
+              merged
+              closed
               additions
               deletions
               repository { nameWithOwner }
+            }
+          }
+        }
+        issueContributions(first: 100) {
+          nodes {
+            issue {
+              createdAt
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+// GraphQL query for organizations (no contributionsCollection available)
+const ORG_QUERY = `
+  query($login: String!) {
+    organization(login: $login) {
+      login
+      name
+      avatarUrl
+      repoList: repositories(privacy: PUBLIC, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+        totalCount
+        nodes {
+          nameWithOwner
+          stargazerCount
+          description
+          updatedAt
+          licenseInfo { spdxId name }
+          languages(first: 5, orderBy: { field: SIZE, direction: DESC }) {
+            edges {
+              size
+              node { name }
             }
           }
         }
@@ -77,6 +141,9 @@ const PR_CONTRIBUTIONS_PAGE_QUERY = `
           }
           nodes {
             pullRequest {
+              createdAt
+              merged
+              closed
               additions
               deletions
               repository { nameWithOwner }
@@ -137,18 +204,107 @@ export async function getUser(username: string) {
   return user;
 }
 
-export async function getUserContributions(
-  username: string,
+/**
+ * Get contribution stats for a GitHub organization.
+ * Organizations don't have contributionsCollection, so we build stats from
+ * their public repos: language breakdown, repo list with stars, etc.
+ */
+export async function getOrgContributions(
+  login: string,
   fromDate?: string,
   toDate?: string,
+  forceRefresh = false,
 ): Promise<UserStats> {
   const now = new Date();
   const from = fromDate ?? new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString();
   const to = toDate ?? now.toISOString();
 
-  const cacheKey = `github:contributions:${username}:${from}:${to}`;
+  const cacheKey = `github:org-contributions:s${CACHE_SCHEMA_VERSION}:${login}:${from}:${to}`;
   const cached = cache.get<UserStats>(cacheKey);
-  if (cached) return cached;
+  if (cached && !forceRefresh) return cached;
+
+  const data = await graphqlQuery<OrganizationData>(ORG_QUERY, { login });
+  const org = data.organization;
+  const repoNodes = org.repoList.nodes;
+
+  // Build language map from all repos
+  const langMap = new Map<string, number>();
+  let totalStars = 0;
+  for (const repo of repoNodes) {
+    totalStars += repo.stargazerCount;
+    if (repo.languages?.edges) {
+      for (const lang of repo.languages.edges) {
+        langMap.set(lang.node.name, (langMap.get(lang.node.name) || 0) + lang.size);
+      }
+    }
+  }
+
+  const totalBytes = [...langMap.values()].reduce((a, b) => a + b, 0);
+  const languages = [...langMap.entries()]
+    .map(([name, bytes]) => ({ name, percentage: Math.round((bytes / totalBytes) * 100) }))
+    .sort((a, b) => b.percentage - a.percentage)
+    .filter(l => l.percentage > 0)
+    .slice(0, 5);
+
+  // Build repo list sorted by stars (contributionCount not available for orgs, use stars as proxy)
+  const contributedRepos = repoNodes
+    .map(repo => ({
+      nameWithOwner: repo.nameWithOwner,
+      contributionCount: repo.stargazerCount, // Use stars as sort proxy
+      stargazerCount: repo.stargazerCount,
+      primaryLanguage: repo.languages?.edges?.length ? repo.languages.edges[0].node.name : null,
+      description: repo.description,
+      licenseSpdxId: repo.licenseInfo?.spdxId || null,
+      updatedAt: repo.updatedAt,
+    }))
+    .sort((a, b) => b.stargazerCount - a.stargazerCount);
+
+  // Build an empty calendar (orgs don't have contribution calendars)
+  const calendar: ContributionDay[] = [];
+
+  const result: UserStats = {
+    login: org.login,
+    name: org.name,
+    avatarUrl: org.avatarUrl,
+    publicRepos: org.repoList.totalCount,
+    followers: 0, // Orgs don't have followers
+    isOrganization: true,
+    totalContributions: 0,
+    totalCommits: 0,
+    totalPRs: 0,
+    totalIssues: 0,
+    totalReviews: 0,
+    totalDiscussions: 0,
+    totalNewRepos: 0,
+    totalPrivateActivity: 0,
+    totalLinesAdded: 0,
+    totalLinesDeleted: 0,
+    starPower: repoNodes.length > 0 ? Math.round(totalStars / repoNodes.length) : 0,
+    prMergeRate: 0,
+    reviewDepth: 0,
+    languages,
+    productiveHours: new Array(24).fill(0),
+    contributedRepos,
+    calendar,
+  };
+
+  cache.set(cacheKey, result, TTL.CONTRIBUTIONS);
+  return result;
+}
+
+export async function getUserContributions(
+  username: string,
+  fromDate?: string,
+  toDate?: string,
+  forceRefresh = false,
+): Promise<UserStats> {
+  const now = new Date();
+  const from = fromDate ?? new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString();
+  const to = toDate ?? now.toISOString();
+
+  const cacheKey = `github:contributions:s${CACHE_SCHEMA_VERSION}:${username}:${from}:${to}`;
+  const cached = cache.get<UserStats>(cacheKey);
+  if (cached && !forceRefresh) return cached;
 
   // Fetch contribution calendar + contributed repo list from GraphQL
   const data = await graphqlQuery<ContributionsData>(CONTRIBUTIONS_QUERY, {
@@ -159,7 +315,8 @@ export async function getUserContributions(
 
   // Shape the response
   const user = data.user;
-  const calendar = user.contributionsCollection.contributionCalendar;
+  const collection = user.contributionsCollection;
+  const calendar = collection.contributionCalendar;
 
   // Flatten weeks into array of days
   const contributionDays = calendar.weeks.flatMap(week =>
@@ -171,30 +328,90 @@ export async function getUserContributions(
   );
 
   // Build deduplicated, contribution-sorted repo list from GraphQL response
-  // (already filtered to the from/to period by the GraphQL query)
-  const contributedRepos = buildContributedRepoList(user.contributionsCollection);
+  const contributedRepos = buildContributedRepoList(collection);
 
-  // Collect PR LOC per repo from GraphQL (always available, covers PRs)
-  const prLocByRepo = await collectPRLocByRepo(username, from, to, user.contributionsCollection);
+  // Fetch PR metadata and LOC per repo from GraphQL
+  const prMetadata = await collectPRMetadata(username, from, to, collection);
 
-  // Fetch TOTAL LOC for all contributed repos using hybrid approach:
-  // REST repo stats (covers commits+PRs+everything) as primary,
-  // GraphQL PR LOC as fallback per repo when REST stats are unavailable
-  const linesData = await getLinesShipped(username, contributedRepos, prLocByRepo, new Date(from), new Date(to));
+  // Fetch TOTAL LOC for all contributed repos
+  const linesData = await getLinesShipped(username, contributedRepos, prMetadata.locByRepo, new Date(from), new Date(to), forceRefresh);
 
-  const result = {
+
+  // Language & Impact analysis
+  const langMap = new Map<string, number>();
+  let totalStars = 0;
+  const repoSet = new Set<string>();
+  
+  const processRepo = (repo: any) => {
+    if (repoSet.has(repo.nameWithOwner)) return;
+    repoSet.add(repo.nameWithOwner);
+    totalStars += repo.stargazerCount;
+    if (repo.languages?.edges) {
+      for (const lang of repo.languages.edges) {
+        langMap.set(lang.node.name, (langMap.get(lang.node.name) || 0) + lang.size);
+      }
+    }
+  };
+
+  for (const entry of collection.commitContributionsByRepository) processRepo(entry.repository);
+  for (const entry of collection.pullRequestContributionsByRepository) processRepo(entry.repository);
+
+  const totalBytes = [...langMap.values()].reduce((a, b) => a + b, 0);
+  const languages = [...langMap.entries()]
+    .map(([name, bytes]) => ({ name, percentage: Math.round((bytes / totalBytes) * 100) }))
+    .sort((a, b) => b.percentage - a.percentage)
+    .filter(l => l.percentage > 0)
+    .slice(0, 5);
+
+  // Productive Hours histogram
+  const productiveHours = new Array(24).fill(0);
+  const allTimestamps = [...(prMetadata.timestamps || []), ...(linesData.timestamps || [])];
+  
+  console.log(`[Persona] Processing ${allTimestamps.length} timestamps for ${username}`);
+  
+  allTimestamps.forEach(ts => {
+    if (!ts) return;
+    const hour = new Date(ts).getUTCHours();
+    if (!isNaN(hour) && hour >= 0 && hour < 24) {
+      productiveHours[hour]++;
+    }
+  });
+  
+  const issueNodes = collection.issueContributions?.nodes || [];
+  issueNodes.forEach(node => {
+    if (node.issue?.createdAt) {
+      const hour = new Date(node.issue.createdAt).getUTCHours();
+      if (!isNaN(hour) && hour >= 0 && hour < 24) {
+        productiveHours[hour]++;
+      }
+    }
+  });
+
+  const totalPRs = collection.totalPullRequestContributions;
+  const result: UserStats = {
     login: user.login,
     name: user.name,
     avatarUrl: user.avatarUrl,
     publicRepos: user.repositories.totalCount,
     followers: user.followers.totalCount,
     totalContributions: calendar.totalContributions,
-    totalCommits: user.contributionsCollection.totalCommitContributions,
-    totalPRs: user.contributionsCollection.totalPullRequestContributions,
-    totalIssues: user.contributionsCollection.totalIssueContributions,
-    totalReviews: user.contributionsCollection.totalPullRequestReviewContributions,
+    totalCommits: collection.totalCommitContributions,
+    totalPRs,
+    totalIssues: collection.totalIssueContributions,
+    totalReviews: collection.totalPullRequestReviewContributions,
+    totalDiscussions: 0,
+    totalNewRepos: collection.totalRepositoryContributions,
+    totalPrivateActivity: collection.restrictedContributionsCount,
     totalLinesAdded: linesData.added,
     totalLinesDeleted: linesData.deleted,
+    starPower: repoSet.size > 0 ? Math.round(totalStars / repoSet.size) : 0,
+    prMergeRate: (prMetadata.mergedCount + prMetadata.closedCount) > 0 ? Math.round((prMetadata.mergedCount / (prMetadata.mergedCount + prMetadata.closedCount)) * 100) : 0,
+    reviewDepth: totalPRs > 0 ? parseFloat((collection.totalPullRequestReviewContributions / totalPRs).toFixed(1)) : 0,
+    languages,
+    productiveHours,
+    contributedRepos: contributedRepos.map(({ owner, name, contributionCount, stargazerCount, primaryLanguage, description, licenseSpdxId, updatedAt }) => ({
+      nameWithOwner: `${owner}/${name}`, contributionCount, stargazerCount, primaryLanguage, description, licenseSpdxId, updatedAt,
+    })),
     calendar: contributionDays,
   };
 
@@ -218,27 +435,61 @@ export async function getUserRepos(username: string) {
  */
 function buildContributedRepoList(
   collection: ContributionsData['user']['contributionsCollection'],
-): Array<{ owner: string; name: string; contributionCount: number }> {
-  const repoMap = new Map<string, { owner: string; name: string; contributionCount: number }>();
+): Array<{
+  owner: string;
+  name: string;
+  contributionCount: number;
+  stargazerCount: number;
+  primaryLanguage: string | null;
+  description: string | null;
+  licenseSpdxId: string | null;
+  updatedAt: string;
+}> {
+  const repoMap = new Map<string, {
+    owner: string;
+    name: string;
+    contributionCount: number;
+    stargazerCount: number;
+    primaryLanguage: string | null;
+    description: string | null;
+    licenseSpdxId: string | null;
+    updatedAt: string;
+  }>();
+
+  const processEntry = (repo: {
+    nameWithOwner: string;
+    stargazerCount: number;
+    description: string | null;
+    updatedAt: string;
+    licenseInfo: { spdxId: string; name: string } | null;
+    languages: { edges: Array<{ size: number; node: { name: string } }> };
+  }, contributionCount: number) => {
+    const [owner, name] = repo.nameWithOwner.split('/');
+    const primaryLanguage = repo.languages?.edges?.length
+      ? repo.languages.edges[0].node.name
+      : null;
+    const licenseSpdxId = repo.licenseInfo?.spdxId || null;
+    const existing = repoMap.get(repo.nameWithOwner);
+    if (existing) {
+      existing.contributionCount += contributionCount;
+    } else {
+      repoMap.set(repo.nameWithOwner, {
+        owner, name,
+        contributionCount,
+        stargazerCount: repo.stargazerCount,
+        primaryLanguage,
+        description: repo.description,
+        licenseSpdxId,
+        updatedAt: repo.updatedAt,
+      });
+    }
+  };
 
   for (const entry of collection.commitContributionsByRepository) {
-    const [owner, name] = entry.repository.nameWithOwner.split('/');
-    const existing = repoMap.get(entry.repository.nameWithOwner);
-    if (existing) {
-      existing.contributionCount += entry.contributions.totalCount;
-    } else {
-      repoMap.set(entry.repository.nameWithOwner, { owner, name, contributionCount: entry.contributions.totalCount });
-    }
+    processEntry(entry.repository, entry.contributions.totalCount);
   }
-
   for (const entry of collection.pullRequestContributionsByRepository) {
-    const [owner, name] = entry.repository.nameWithOwner.split('/');
-    const existing = repoMap.get(entry.repository.nameWithOwner);
-    if (existing) {
-      existing.contributionCount += entry.contributions.totalCount;
-    } else {
-      repoMap.set(entry.repository.nameWithOwner, { owner, name, contributionCount: entry.contributions.totalCount });
-    }
+    processEntry(entry.repository, entry.contributions.totalCount);
   }
 
   return [...repoMap.values()].sort((a, b) => b.contributionCount - a.contributionCount);
@@ -254,13 +505,13 @@ async function listUserCommits(
   username: string,
   fromDate: Date,
   toDate: Date,
-): Promise<string[]> {
-  const shas: string[] = [];
+): Promise<Array<{ sha: string; date: string }>> {
+  const commits: Array<{ sha: string; date: string }> = [];
   let page = 1;
-  const MAX_PAGES = 10; // safety limit (10 pages × 100 = 1000 commits per repo)
+  const MAX_PAGES = 5; // Reduced for faster debugging and lower rate limit impact
 
   while (page <= MAX_PAGES) {
-    const url = `${GITHUB_REST_URL}/repos/${owner}/${repo}/commits?author=${username}&since=${fromDate.toISOString()}&until=${toDate.toISOString()}&per_page=100&page=${page}`;
+    const url = `${GITHUB_REST_URL}/repos/${owner}/${repo}/commits?author=${encodeURIComponent(username)}&since=${fromDate.toISOString()}&until=${toDate.toISOString()}&per_page=100&page=${page}`;
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${GITHUB_TOKEN}`,
@@ -268,20 +519,30 @@ async function listUserCommits(
       },
     });
 
-    if (!response.ok) break; // repo may not exist or be private
-
-    const commits = await response.json() as Array<{ sha: string }>;
-    if (commits.length === 0) break;
-
-    for (const c of commits) {
-      shas.push(c.sha);
+    if (!response.ok) {
+      console.error(`[REST] Error fetching commits for ${owner}/${repo}: ${response.status} ${response.statusText}`);
+      break;
     }
 
-    if (commits.length < 100) break; // last page
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      console.warn(`[REST] Unexpected response format for ${owner}/${repo}:`, data);
+      break;
+    }
+    
+    if (data.length === 0) break;
+
+    for (const c of data) {
+      if (c.commit?.author?.date) {
+        commits.push({ sha: c.sha, date: c.commit.author.date });
+      }
+    }
+
+    if (data.length < 100) break;
     page++;
   }
 
-  return shas;
+  return commits;
 }
 
 /**
@@ -323,92 +584,105 @@ async function getCommitStats(
  * Get total lines added/deleted from ALL commits in a repo by the user
  * within the date range. Uses individual commit stats (always available).
  */
+/**
+ * Get total lines added/deleted and ALL timestamps from commits in a repo.
+ */
 async function getCommitLocForRepo(
   owner: string,
   repo: string,
   username: string,
   fromDate: Date,
   toDate: Date,
-): Promise<{ added: number; deleted: number }> {
-  const cacheKey = `github:commit-loc:${owner}/${repo}:${username}:${fromDate.toISOString()}:${toDate.toISOString()}`;
-  const cached = cache.get<{ added: number; deleted: number }>(cacheKey);
-  if (cached) return cached;
+  forceRefresh = false,
+): Promise<{ added: number; deleted: number; timestamps: string[] }> {
+  const cacheKey = `github:commit-loc:s${CACHE_SCHEMA_VERSION}:${owner}/${repo}:${username}:${fromDate.toISOString()}:${toDate.toISOString()}`;
+  const cached = cache.get<{ added: number; deleted: number; timestamps: string[] }>(cacheKey);
+  if (cached && !forceRefresh) return cached;
 
-  const shas = await listUserCommits(owner, repo, username, fromDate, toDate);
-  console.log(`[LOC] ${owner}/${repo}: ${shas.length} commits by ${username}`);
-  if (shas.length === 0) return { added: 0, deleted: 0 };
+  const commits = await listUserCommits(owner, repo, username, fromDate, toDate);
+  if (commits.length === 0) return { added: 0, deleted: 0, timestamps: [] };
 
+  const timestamps = commits.map(c => c.date);
+  
+  // We have the timestamps, now try to get LOC.
+  // If we fail here (e.g. ratelimit), we at least return the timestamps.
   let added = 0;
   let deleted = 0;
 
-  // Fetch commit stats in batches of 25 to reduce round-trips
-  const BATCH_SIZE = 25;
-  for (let i = 0; i < shas.length; i += BATCH_SIZE) {
-    const batch = shas.slice(i, i + BATCH_SIZE);
-    const statsResults = await Promise.allSettled(
-      batch.map(sha => getCommitStats(owner, repo, sha))
-    );
+  try {
+    const BATCH_SIZE = 25;
+    // Limit LOC fetching to the first 250 commits to avoid extreme ratelimiting on huge repos
+    const statsBatch = commits.slice(0, 250);
+    for (let i = 0; i < statsBatch.length; i += BATCH_SIZE) {
+      const batch = statsBatch.slice(i, i + BATCH_SIZE);
+      const statsResults = await Promise.allSettled(
+        batch.map(c => getCommitStats(owner, repo, c.sha))
+      );
 
-    for (const result of statsResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        added += result.value.additions;
-        deleted += result.value.deletions;
+      for (const result of statsResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          added += result.value.additions;
+          deleted += result.value.deletions;
+        }
       }
     }
+  } catch (e) {
+    console.error(`[LOC] Throttled or failed stats for ${owner}/${repo}:`, e);
   }
 
-  const locData = { added, deleted };
+  const locData = { added, deleted, timestamps };
   cache.set(cacheKey, locData, TTL.REPO_STATS);
   return locData;
 }
 
 /**
- * Collect PR LOC per repo from the GraphQL response, with pagination.
- * This always works and provides at least PR additions/deletions.
- * Returns a map of repo nameWithOwner -> { added, deleted }.
+ * Collect PR LOC and metadata (timestamps, status) from GraphQL with pagination.
  */
-async function collectPRLocByRepo(
+async function collectPRMetadata(
   username: string,
   from: string,
   to: string,
   collection: ContributionsData['user']['contributionsCollection'],
-): Promise<Map<string, { added: number; deleted: number }>> {
-  const repoMap = new Map<string, { added: number; deleted: number }>();
+) {
+  const locByRepo = new Map<string, { added: number; deleted: number }>();
+  const timestamps: string[] = [];
+  let mergedCount = 0;
+  let closedCount = 0;
 
-  const addPR = (pr: { additions: number; deletions: number; repository: { nameWithOwner: string } }) => {
+  const processPR = (pr: ContributionsData['user']['contributionsCollection']['pullRequestContributions']['nodes'][0]['pullRequest']) => {
+    // LOC
     const key = pr.repository.nameWithOwner;
-    const existing = repoMap.get(key);
+    const existing = locByRepo.get(key);
     if (existing) {
       existing.added += pr.additions;
       existing.deleted += pr.deletions;
     } else {
-      repoMap.set(key, { added: pr.additions, deleted: pr.deletions });
+      locByRepo.set(key, { added: pr.additions, deleted: pr.deletions });
     }
+    // Metadata
+    timestamps.push(pr.createdAt);
+    if (pr.merged) mergedCount++;
+    else if (pr.closed) closedCount++;
   };
 
-  // Sum the first page from the initial query
+  // First page
   for (const node of collection.pullRequestContributions.nodes) {
-    addPR(node.pullRequest);
+    processPR(node.pullRequest);
   }
 
-  // Paginate through remaining pages
-  let hasNextPage = collection.pullRequestContributions.pageInfo.hasNextPage;
-  let cursor = collection.pullRequestContributions.pageInfo.endCursor;
-
+  // Pagination
+  let { hasNextPage, endCursor: cursor } = collection.pullRequestContributions.pageInfo;
   while (hasNextPage && cursor) {
-    const pageData = await graphqlQuery<PRContributionsPageData>(
-      PR_CONTRIBUTIONS_PAGE_QUERY,
-      { login: username, from, to, cursor },
-    );
+    const pageData = await graphqlQuery<PRContributionsPageData>(PR_CONTRIBUTIONS_PAGE_QUERY, { login: username, from, to, cursor });
     const prContribs = pageData.user.contributionsCollection.pullRequestContributions;
     for (const node of prContribs.nodes) {
-      addPR(node.pullRequest);
+      processPR(node.pullRequest);
     }
     hasNextPage = prContribs.pageInfo.hasNextPage;
     cursor = prContribs.pageInfo.endCursor;
   }
 
-  return repoMap;
+  return { locByRepo, timestamps: timestamps || [], mergedCount, closedCount };
 }
 
 /**
@@ -429,55 +703,51 @@ async function getLinesShipped(
   prLocByRepo: Map<string, { added: number; deleted: number }>,
   fromDate: Date,
   toDate: Date,
-): Promise<{ added: number; deleted: number }> {
-  const cacheKey = `github:lines-shipped:${username}:${fromDate.toISOString()}:${toDate.toISOString()}`;
-  const cached = cache.get<{ added: number; deleted: number }>(cacheKey);
-  if (cached) return cached;
+  forceRefresh = false,
+): Promise<{ added: number; deleted: number; timestamps: string[] }> {
+  const cacheKey = `github:lines-shipped:s${CACHE_SCHEMA_VERSION}:${username}:${fromDate.toISOString()}:${toDate.toISOString()}`;
+  const cached = cache.get<{ added: number; deleted: number; timestamps: string[] }>(cacheKey);
+  if (cached && !forceRefresh) return cached;
 
   try {
     let totalAdded = 0;
     let totalDeleted = 0;
+    const timestamps: string[] = [];
     const reposWithCommits = new Set<string>();
 
-    // Fetch commit LOC for all contributed repos in batches of 5
-    // (each repo may require many individual commit stat requests)
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < contributedRepos.length; i += BATCH_SIZE) {
-      const batch = contributedRepos.slice(i, i + BATCH_SIZE);
-      const commitLocResults = await Promise.allSettled(
-        batch.map(repo => getCommitLocForRepo(repo.owner, repo.name, username, fromDate, toDate))
-      );
-
-      for (let j = 0; j < commitLocResults.length; j++) {
-        const result = commitLocResults[j];
-        const repo = batch[j];
+    // Process repositories sequentially with a small delay to avoid 403 Rate Limits
+    for (const repo of contributedRepos) {
+      try {
         const repoKey = `${repo.owner}/${repo.name}`;
-        if (result.status === 'fulfilled') {
-          totalAdded += result.value.added;
-          totalDeleted += result.value.deleted;
-          if (result.value.added > 0 || result.value.deleted > 0) {
-            reposWithCommits.add(repoKey);
-          }
+        const result = await getCommitLocForRepo(repo.owner, repo.name, username, fromDate, toDate, forceRefresh);
+        
+        totalAdded += result.added;
+        totalDeleted += result.deleted;
+        if (Array.isArray(result.timestamps)) {
+          timestamps.push(...result.timestamps);
         }
+        if (result.added > 0 || result.deleted > 0) {
+          reposWithCommits.add(repoKey);
+        }
+        
+        // Increased delay between repos to avoid 403 secondary rate limits
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (err) {
+        console.error(`[LOC] Error processing repo ${repo.owner}/${repo.name}:`, err);
+        // Continue with next repo if one fails, to ensure as much data as possible is collected
       }
     }
 
-    // Add PR LOC only for repos where the user had NO direct commits.
-    // For repos with commits, commit stats already include PR commits
-    // (normally-merged PRs appear as authored commits in the repo).
-    // For repos without commits, PR LOC covers contributions to
-    // others' repos (e.g., fork PRs, open PRs).
     for (const [repoKey, prLoc] of prLocByRepo) {
       if (reposWithCommits.has(repoKey)) continue;
       totalAdded += prLoc.added;
       totalDeleted += prLoc.deleted;
     }
 
-    const linesData = { added: totalAdded, deleted: totalDeleted };
+    const linesData = { added: totalAdded, deleted: totalDeleted, timestamps };
     cache.set(cacheKey, linesData, TTL.CONTRIBUTIONS);
     return linesData;
   } catch (err) {
-    // Gracefully degrade — fall back to pure PR LOC if commit stats fail
     console.error(`Failed to fetch lines shipped for ${username}:`, err);
     let prAdded = 0;
     let prDeleted = 0;
@@ -485,7 +755,7 @@ async function getLinesShipped(
       prAdded += prLoc.added;
       prDeleted += prLoc.deleted;
     }
-    return { added: prAdded, deleted: prDeleted };
+    return { added: prAdded, deleted: prDeleted, timestamps: [] };
   }
 }
 

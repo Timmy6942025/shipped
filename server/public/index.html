@@ -94,7 +94,6 @@
       width: 100%;
     }
     .go-btn:hover { opacity: 0.8; }
-    .go-btn:disabled { opacity: 0.4; cursor: default; }
 
     #landing-error {
       color: var(--neg);
@@ -133,12 +132,14 @@
       align-items: center;
       gap: 0.875rem;
       margin-bottom: 2rem;
+      position: relative;
     }
     .profile img {
       width: 40px; height: 40px;
       border-radius: 50%;
       opacity: 0.9;
     }
+    .profile .name-wrap { flex: 1; }
     .profile .name {
       font-size: 1.1rem;
       font-weight: 700;
@@ -149,6 +150,36 @@
       color: var(--text-mut);
       font-weight: 300;
     }
+    .org-badge {
+      font-size: 0.5rem;
+      color: var(--text-mut);
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.45rem;
+      border-radius: 3px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-left: 0.5rem;
+    }
+    .refresh-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-mut);
+      font-family: var(--font);
+      font-size: 0.6rem;
+      padding: 0.35rem 0.6rem;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .refresh-btn:hover { color: var(--text); border-color: var(--text-mut); background: var(--surface-hi); }
+    .refresh-btn svg { width: 10px; height: 10px; }
+    .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
     /* Period selector */
     .periods {
@@ -413,9 +444,9 @@
 
     /* Breakdown */
     .breakdown {
-      display: flex;
-      gap: 2.5rem;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 2rem;
       padding-top: 1.5rem;
       border-top: 1px solid var(--border);
     }
@@ -423,6 +454,273 @@
       font-size: 1.1rem;
       font-weight: 600;
     }
+
+    /* Impact & Stack Section */
+    .impact-stack {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 2.5rem;
+      margin-bottom: 2.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .stack-box { display: flex; flex-direction: column; gap: 0.875rem; }
+    .stack-box .lbl { font-size: 0.55rem; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.12em; }
+    .stack-bar {
+      height: 8px;
+      width: 100%;
+      background: var(--surface-hi);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+    .stack-segment { height: 100%; transition: width 0.6s ease; }
+    .stack-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+    .stack-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.65rem; color: var(--text-sec); }
+    .stack-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .stack-item .pct { color: var(--text-mut); margin-left: auto; }
+
+    .quality-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .quality-grid .stat .num { font-size: 1.1rem; }
+
+    /* Persona Section */
+    .persona-section {
+      margin-bottom: 2.5rem;
+      padding: 2rem 0;
+      border-top: 1px solid var(--border);
+      position: relative;
+    }
+    .persona-header { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      margin-bottom: 1.5rem; 
+      min-height: 28px;
+    }
+    .persona-header .lbl-wrap { display: flex; align-items: center; gap: 0.75rem; }
+    .persona-header .lbl { font-size: 0.55rem; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.12em; }
+    
+    #persona-time {
+      font-size: 0.6rem;
+      color: var(--text-sec);
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    #persona-time.show { opacity: 1; }
+
+    .persona-tag {
+      font-size: 0.65rem;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border: 1px solid rgba(52, 211, 153, 0.15);
+    }
+
+    .hour-graph-wrap {
+      background: rgba(255, 255, 255, 0.015);
+      border-radius: 4px;
+      padding: 1.5rem 1rem 1rem;
+      border: 1px solid var(--border);
+    }
+    .hour-graph {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 60px;
+      margin-bottom: 1rem;
+    }
+    .hour-bar {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px 2px 0 0;
+      min-height: 6px;
+      transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, opacity 0.2s;
+      cursor: crosshair;
+    }
+    .hour-bar:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .hour-bar.active { 
+      background: var(--accent);
+      opacity: 0.75;
+    }
+    .hour-bar.active:hover {
+      opacity: 1;
+      filter: brightness(1.2);
+    }
+
+    .hour-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.55rem;
+      color: var(--text-mut);
+      font-weight: 400;
+      padding-top: 0.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .hour-labels span { display: flex; align-items: center; gap: 0.35rem; }
+    .hour-labels i { font-style: normal; font-size: 0.8rem; }
+
+    /* Repositories Section */
+    .repos-section {
+      margin-top: 2.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .repos-section .repos-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .repos-section .section-lbl {
+      font-size: 0.55rem;
+      color: var(--text-mut);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .repo-sort {
+      display: inline-flex;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .repo-sort-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-mut);
+      font-family: var(--font);
+      font-size: 0.5rem;
+      font-weight: 500;
+      padding: 0.25rem 0.55rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .repo-sort-btn:hover { color: var(--text-sec); background: var(--surface-hi); }
+    .repo-sort-btn.active { color: var(--accent); background: var(--accent-dim); }
+    .repo-sort-btn svg { width: 10px; height: 10px; }
+    .repo-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .repo-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.75rem 0.85rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      transition: border-color 0.15s, background 0.15s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .repo-item:hover {
+      border-color: var(--text-mut);
+      background: var(--surface-hi);
+    }
+    .repo-row-top {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .repo-lang-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .repo-name {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .repo-stars {
+      font-size: 0.6rem;
+      color: var(--text-mut);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-shrink: 0;
+    }
+    .repo-stars svg { width: 10px; height: 10px; opacity: 0.6; }
+    .repo-contribs {
+      font-size: 0.55rem;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      font-weight: 600;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .repo-contribs.stars-badge {
+      color: var(--text-sec);
+      background: var(--surface-hi);
+    }
+    .repo-desc {
+      font-size: 0.6rem;
+      color: var(--text-mut);
+      font-weight: 300;
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding-left: 1.6rem;
+    }
+    .repo-row-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-left: 1.6rem;
+      flex-wrap: wrap;
+    }
+    .repo-meta {
+      font-size: 0.5rem;
+      color: var(--text-mut);
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-weight: 400;
+    }
+    .repo-meta svg { width: 10px; height: 10px; opacity: 0.5; }
+    .repo-meta.lang-meta { color: var(--text-sec); }
+    .show-more-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-mut);
+      font-family: var(--font);
+      font-size: 0.6rem;
+      font-weight: 400;
+      padding: 0.4rem 0.75rem;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-top: 0.5rem;
+      letter-spacing: 0.03em;
+    }
+    .show-more-btn:hover { color: var(--text); border-color: var(--text-mut); background: var(--surface); }
 
     /* LOC note */
     .loc-note {
@@ -437,6 +735,234 @@
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
     .pulsing { animation: pulse 1.4s ease-in-out infinite; }
 
+    /* Square loaders from css-loaders.com/square/ */
+    .go-btn:disabled {
+      cursor: default;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      min-height: 2.2rem;
+    }
+    .go-btn .loader { display: inline-flex; flex-shrink: 0; }
+
+    /* Loader 1: Bouncing squares */
+    .loader-1 {
+      display: inline-flex; gap: 5px;
+      animation: sq1-0 1s infinite;
+      zoom: 0.5;
+    }
+    .loader-1:before, .loader-1:after {
+      content: ""; width: 25px; aspect-ratio: 1;
+      box-shadow: 0 0 0 3px inset var(--accent);
+      transform-origin: top right;
+      animation: sq1-1 1s infinite;
+    }
+    .loader-1:after { transform-origin: top left; --s: -1; }
+    @keyframes sq1-0 { to { transform: translateY(100%) } }
+    @keyframes sq1-1 { to { transform: rotate(calc(var(--s,1)*90deg)) } }
+
+    /* Loader 2: Squeeze squares */
+    .loader-2 {
+      display: inline-flex; gap: 5px;
+      animation: sq2-0 1s infinite;
+      zoom: 0.65;
+    }
+    .loader-2:before, .loader-2:after {
+      content: ""; width: 25px; aspect-ratio: 1;
+      box-shadow: 0 0 0 3px inset var(--accent);
+      animation: sq2-1 1s infinite;
+    }
+    .loader-2:after { --s: -1; }
+    @keyframes sq2-0 {
+      0%, 50%  { transform: rotate(0deg) }
+      80%, 100% { transform: rotate(180deg) }
+    }
+    @keyframes sq2-1 {
+      0%   { transform: translate(0) }
+      50%, 80% { transform: translate(calc(var(--s,1)*2.5px)) }
+      100% { transform: translate(0) }
+    }
+
+    /* Loader 3: Pivot squares */
+    .loader-3 {
+      display: inline-flex; gap: 5px;
+      animation: sq3-0 1s infinite;
+      transform-origin: 50% calc(100% + 2.5px);
+      zoom: 0.5;
+    }
+    .loader-3:before, .loader-3:after {
+      content: ""; width: 25px; aspect-ratio: 1;
+      box-shadow: 0 0 0 3px inset var(--accent);
+    }
+    .loader-3:after {
+      transform-origin: -2.5px calc(100% + 2.5px);
+      animation: sq3-1 1s infinite;
+    }
+    @keyframes sq3-0 {
+      0%, 50%  { transform: rotate(0deg) }
+      100% { transform: rotate(90deg) }
+    }
+    @keyframes sq3-1 {
+      50%, 100% { transform: rotate(180deg) }
+    }
+
+    /* Loader 4: Flip squares */
+    .loader-4 {
+      display: inline-flex; gap: 5px;
+      zoom: 0.65;
+    }
+    .loader-4:before, .loader-4:after {
+      content: ""; width: 25px; aspect-ratio: 1;
+      box-shadow: 0 0 0 3px inset var(--accent);
+      animation: sq4 1.5s infinite;
+    }
+    .loader-4:after { --s: -1; animation-delay: 0.75s; }
+    @keyframes sq4 {
+      0%     { transform: scaleX(var(--s,1)) translate(0) rotate(0) }
+      16.67% { transform: scaleX(var(--s,1)) translate(-50%) rotate(0) }
+      33.33% { transform: scaleX(var(--s,1)) translate(-50%) rotate(90deg) }
+      50%, 100% { transform: scaleX(var(--s,1)) translate(0) rotate(90deg) }
+    }
+
+    /* Loader 5: Merge squares */
+    .loader-5 {
+      display: inline-flex; gap: 5px;
+      zoom: 0.65;
+    }
+    .loader-5:before, .loader-5:after {
+      content: ""; width: 25px; aspect-ratio: 1;
+      box-shadow: 0 0 0 3px inset var(--accent);
+      animation: sq5 1.5s infinite;
+    }
+    .loader-5:after { --s: -1; }
+    @keyframes sq5 {
+      0%   { transform: scaleX(var(--s,1)) translate(0) scale(1) }
+      33%  { transform: scaleX(var(--s,1)) translate(calc(50% + 2.5px)) scale(1) }
+      66%  { transform: scaleX(var(--s,1)) translate(calc(50% + 2.5px)) scale(2) }
+      100% { transform: scaleX(var(--s,1)) translate(0) scale(1) }
+    }
+
+    /* Loader 6: Wave squares */
+    .loader-6 {
+      width: 85px; height: 35px;
+      --g1: conic-gradient(from 90deg at 3px 3px, #0000 90deg, var(--accent) 0);
+      --g2: conic-gradient(from -90deg at 22px 22px, #0000 90deg, var(--accent) 0);
+      background: var(--g1), var(--g1), var(--g1), var(--g2), var(--g2), var(--g2);
+      background-size: 25px 25px;
+      background-repeat: no-repeat;
+      animation: sq6 1s infinite alternate;
+      zoom: 0.5;
+    }
+    @keyframes sq6 {
+      0%   { background-position: 0 50%, 50% 50%, 100% 50% }
+      20%  { background-position: 0 0, 50% 50%, 100% 50% }
+      40%  { background-position: 0 100%, 50% 0, 100% 50% }
+      60%  { background-position: 0 50%, 50% 100%, 100% 0 }
+      80%  { background-position: 0 50%, 50% 50%, 100% 100% }
+      100% { background-position: 0 50%, 50% 50%, 100% 50% }
+    }
+
+    /* Loader 7: Path squares */
+    .loader-7 {
+      width: 55px; aspect-ratio: 1;
+      --g1: conic-gradient(from 90deg at 3px 3px, #0000 90deg, var(--accent) 0);
+      --g2: conic-gradient(from -90deg at 22px 22px, #0000 90deg, var(--accent) 0);
+      background: var(--g1), var(--g1), var(--g1), var(--g2), var(--g2), var(--g2);
+      background-size: 25px 25px;
+      background-repeat: no-repeat;
+      animation: sq7 1.5s infinite;
+      zoom: 0.55;
+    }
+    @keyframes sq7 {
+      0%   { background-position: 0 0, 0 100%, 100% 100% }
+      25%  { background-position: 100% 0, 0 100%, 100% 100% }
+      50%  { background-position: 100% 0, 0 0, 100% 100% }
+      75%  { background-position: 100% 0, 0 0, 0 100% }
+      100% { background-position: 100% 100%, 0 0, 0 100% }
+    }
+
+    /* Loader 8: Pulse bars */
+    .loader-8 {
+      width: 85px; height: 25px;
+      --g1: conic-gradient(from 90deg at left 3px top 3px, #0000 90deg, var(--accent) 0);
+      --g2: conic-gradient(from -90deg at bottom 3px right 3px, #0000 90deg, var(--accent) 0);
+      background: var(--g1), var(--g1), var(--g1), var(--g2), var(--g2), var(--g2);
+      background-position: left, center, right;
+      background-repeat: no-repeat;
+      animation: sq8 1s infinite;
+      zoom: 0.55;
+    }
+    @keyframes sq8 {
+      0%   { background-size: 25px 100%, 25px 100%, 25px 100% }
+      20%  { background-size: 25px 50%, 25px 100%, 25px 100% }
+      40%  { background-size: 25px 50%, 25px 50%, 25px 100% }
+      60%  { background-size: 25px 100%, 25px 50%, 25px 50% }
+      80%  { background-size: 25px 100%, 25px 100%, 25px 50% }
+      100% { background-size: 25px 100%, 25px 100%, 25px 100% }
+    }
+
+    /* Loader 9: Grow bars */
+    .loader-9 {
+      width: 85px; height: 50px;
+      --g1: conic-gradient(from 90deg at left 3px top 3px, #0000 90deg, var(--accent) 0);
+      --g2: conic-gradient(from -90deg at bottom 3px right 3px, #0000 90deg, var(--accent) 0);
+      background: var(--g1), var(--g1), var(--g1), var(--g2), var(--g2), var(--g2);
+      background-position: left, center, right;
+      background-repeat: no-repeat;
+      animation: sq9 1s infinite;
+      zoom: 0.4;
+    }
+    @keyframes sq9 {
+      0%   { background-size: 25px 50%, 25px 50%, 25px 50% }
+      25%  { background-size: 25px 100%, 25px 50%, 25px 50% }
+      50%  { background-size: 25px 50%, 25px 100%, 25px 50% }
+      75%  { background-size: 25px 50%, 25px 50%, 25px 100% }
+      100% { background-size: 25px 50%, 25px 50%, 25px 50% }
+    }
+
+    /* Loader 10: Breathe bars */
+    .loader-10 {
+      width: 85px; height: 50px;
+      --g1: conic-gradient(from 90deg at left 3px top 3px, #0000 90deg, var(--accent) 0);
+      --g2: conic-gradient(from -90deg at bottom 3px right 3px, #0000 90deg, var(--accent) 0);
+      background: var(--g1), var(--g1), var(--g1), var(--g2), var(--g2), var(--g2);
+      background-position: left, center, right;
+      background-repeat: no-repeat;
+      animation: sq10 1s infinite alternate;
+      zoom: 0.4;
+    }
+    @keyframes sq10 {
+      0%, 2%   { background-size: 25px 50%, 25px 50%, 25px 50% }
+      20%  { background-size: 25px 25%, 25px 50%, 25px 50% }
+      40%  { background-size: 25px 100%, 25px 25%, 25px 50% }
+      60%  { background-size: 25px 50%, 25px 100%, 25px 25% }
+      80%  { background-size: 25px 50%, 25px 50%, 25px 100% }
+      98%, 100% { background-size: 25px 50%, 25px 50%, 25px 50% }
+    }
+
+    /* Loader 11: Morphing frame */
+    .loader-11 {
+      width: 55px; aspect-ratio: 1;
+      --g1: conic-gradient(from 90deg at top 3px left 3px, #0000 90deg, var(--accent) 0);
+      --g2: conic-gradient(from -90deg at bottom 3px right 3px, #0000 90deg, var(--accent) 0);
+      background:
+        var(--g1), var(--g1), var(--g1), var(--g1),
+        var(--g2), var(--g2), var(--g2), var(--g2);
+      background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+      background-size: 25px 25px;
+      background-repeat: no-repeat;
+      animation: sq11 1.5s infinite;
+      zoom: 0.55;
+    }
+    @keyframes sq11 {
+      0%   { background-size: 35px 15px, 15px 15px, 15px 35px, 35px 35px }
+      25%  { background-size: 35px 35px, 15px 35px, 15px 15px, 35px 15px }
+      50%  { background-size: 15px 35px, 35px 35px, 35px 15px, 15px 15px }
+      75%  { background-size: 15px 15px, 35px 15px, 35px 35px, 15px 35px }
+      100% { background-size: 35px 15px, 15px 15px, 15px 35px, 35px 35px }
+    }
+
     /* Fade in */
     @keyframes fadeUp {
       from { opacity:0; transform:translateY(8px); }
@@ -449,6 +975,8 @@
     .fade-d4 { animation-delay: 0.2s; }
     .fade-d5 { animation-delay: 0.25s; }
     .fade-d6 { animation-delay: 0.3s; }
+    .fade-d7 { animation-delay: 0.35s; }
+    .fade-d8 { animation-delay: 0.4s; }
 
     /* Responsive */
     @media (max-width: 600px) {
@@ -528,7 +1056,49 @@
       </div>
     </div>
 
-    <div class="breakdown fade-in fade-d5">
+    <!-- Impact & Stack Section -->
+    <div class="impact-stack fade-in fade-d5">
+      <div class="stack-box">
+        <span class="lbl">top tech stack</span>
+        <div class="stack-bar" id="stack-bar"></div>
+        <div class="stack-list" id="stack-list"></div>
+      </div>
+      <div class="quality-grid">
+        <div class="stat">
+          <span class="num" id="s-stars">—</span>
+          <span class="lbl">avg star power</span>
+        </div>
+        <div class="stat">
+          <span class="num" id="s-merge">—</span>
+          <span class="lbl">pr merge rate</span>
+        </div>
+        <div class="stat">
+          <span class="num" id="s-depth">—</span>
+          <span class="lbl">review depth</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coding Persona / Activity Time -->
+    <div class="persona-section fade-in fade-d6">
+      <div class="persona-header">
+        <div class="lbl-wrap">
+          <span class="lbl">coding persona</span>
+          <span class="persona-tag" id="persona-tag">—</span>
+        </div>
+        <span id="persona-time"></span>
+      </div>
+      <div class="hour-graph-wrap">
+        <div class="hour-graph" id="hour-graph"></div>
+        <div class="hour-labels">
+          <span><i>☾</i> 12am</span>
+          <span><i>☼</i> 12pm</span>
+          <span><i>☾</i> 11pm</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="breakdown fade-in fade-d7">
       <div class="stat">
         <span class="num" id="s-commits">—</span>
         <span class="lbl">commits</span>
@@ -546,12 +1116,38 @@
         <span class="lbl">reviews</span>
       </div>
       <div class="stat">
+        <span class="num" id="s-newrepos">—</span>
+        <span class="lbl">new repos</span>
+      </div>
+      <div class="stat">
+        <span class="num" id="s-private">—</span>
+        <span class="lbl">private activity</span>
+      </div>
+      <div class="stat">
         <span class="num" id="s-repos">—</span>
-        <span class="lbl">repos</span>
+        <span class="lbl">total repos</span>
       </div>
     </div>
 
     <p class="loc-note fade-in fade-d6" id="loc-note">lines shipped/removed counts commits across all contributed repositories (owned + others').</p>
+
+    <!-- Repositories -->
+    <div class="repos-section fade-in fade-d8" id="repos-section">
+      <div class="repos-header">
+        <span class="section-lbl">repositories</span>
+        <div class="repo-sort" id="repo-sort">
+          <button class="repo-sort-btn active" data-sort="commits" id="sort-commits">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 012.5 1h3A1.5 1.5 0 017 2.5v3A1.5 1.5 0 015.5 7h-3A1.5 1.5 0 011 5.5v-3zM2.5 2a.5.5 0 00-.5.5v3a.5.5 0 00.5.5h3a.5.5 0 00.5-.5v-3a.5.5 0 00-.5-.5h-3zm6 0a.5.5 0 00-.5.5v3a.5.5 0 00.5.5h3a.5.5 0 00.5-.5v-3a.5.5 0 00-.5-.5h-3zm-.5 8.5a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 0114 10.5v3a1.5 1.5 0 01-1.5 1.5h-3A1.5 1.5 0 018 13.5v-3zM9.5 9a.5.5 0 00-.5.5v3a.5.5 0 00.5.5h3a.5.5 0 00.5-.5v-3a.5.5 0 00-.5-.5h-3zm-8 1a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 018 10.5v3A1.5 1.5 0 016.5 15h-3A1.5 1.5 0 011 13.5v-3zm1.5-.5a.5.5 0 00-.5.5v3a.5.5 0 00.5.5h3a.5.5 0 00.5-.5v-3a.5.5 0 00-.5-.5h-3z"/></svg>
+            commits
+          </button>
+          <button class="repo-sort-btn" data-sort="stars" id="sort-stars">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>
+            stars
+          </button>
+        </div>
+      </div>
+      <div class="repo-list" id="repo-list"></div>
+    </div>
   </div>
 
   <!-- Tooltip -->
@@ -631,13 +1227,39 @@ function renderProfile(p) {
   el.innerHTML = '';
   const img = document.createElement('img');
   img.src = p.avatarUrl; img.alt = '';
+  img.referrerPolicy = 'no-referrer';
+  img.onerror = function() {
+    if (!this.src.includes('ui-avatars.com')) {
+      this.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || p.login)}&background=27272a&color=e4e4e7&size=80&font-size=0.4&bold=true`;
+    }
+  };
   const info = document.createElement('div');
+  info.className = 'name-wrap';
   const nameDiv = document.createElement('div');
   nameDiv.className = 'name'; nameDiv.textContent = p.name || p.login;
   const loginDiv = document.createElement('div');
   loginDiv.className = 'login'; loginDiv.textContent = '@' + p.login;
+  if (p.isOrganization) {
+    const badge = document.createElement('span');
+    badge.className = 'org-badge'; badge.textContent = 'org';
+    loginDiv.appendChild(badge);
+  }
   info.append(nameDiv, loginDiv);
-  el.append(img, info);
+  
+  const refreshBtn = document.createElement('button');
+  refreshBtn.className = 'refresh-btn';
+  refreshBtn.id = 'btn-refresh';
+  refreshBtn.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 4v6h-6"></path>
+      <path d="M1 20v-6h6"></path>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+    </svg>
+    refresh
+  `;
+  refreshBtn.addEventListener('click', () => refreshData());
+  
+  el.append(img, info, refreshBtn);
 }
 
 function renderGraph(calendar) {
@@ -708,21 +1330,27 @@ function renderGraph(calendar) {
 
 function renderSummary(data) {
   const el = document.getElementById('graph-summary');
-  const total = data.totalContributions;
-  const label = periodLabel(S.period);
-  el.innerHTML = `<span class="count">${total.toLocaleString()}</span> contributions ${label}`;
+  if (data.isOrganization) {
+    el.innerHTML = `<span class="count">${data.publicRepos.toLocaleString()}</span> public repositories`;
+  } else {
+    const total = data.totalContributions;
+    const label = periodLabel(S.period);
+    el.innerHTML = `<span class="count">${total.toLocaleString()}</span> contributions ${label}`;
+  }
 }
 
-function animateNum(id, target) {
+function animateNum(id, target, suffix = '') {
   const el = document.getElementById(id);
   if (!target && target !== 0) { el.textContent = '—'; return; }
-  if (target === 0) { el.textContent = '0'; return; }
+  if (target === 0) { el.textContent = '0' + suffix; return; }
   const dur = 420;
   const t0 = performance.now();
+  const isFloat = !Number.isInteger(target);
   (function tick(now) {
     const p = Math.min((now - t0) / dur, 1);
     const e = 1 - Math.pow(1 - p, 3);
-    el.textContent = Math.round(target * e).toLocaleString();
+    const val = target * e;
+    el.textContent = (isFloat ? val.toFixed(1) : Math.round(val).toLocaleString()) + suffix;
     if (p < 1) requestAnimationFrame(tick);
   })(t0);
 }
@@ -732,7 +1360,224 @@ function renderBreakdown(data) {
   animateNum('s-prs', data.totalPRs);
   animateNum('s-issues', data.totalIssues);
   animateNum('s-reviews', data.totalReviews);
+  animateNum('s-newrepos', data.totalNewRepos);
+  animateNum('s-private', data.totalPrivateActivity);
   animateNum('s-repos', data.publicRepos);
+}
+
+function renderQuality(data) {
+  animateNum('s-stars', data.starPower);
+  animateNum('s-merge', data.prMergeRate, '%');
+  animateNum('s-depth', data.reviewDepth, 'x');
+}
+
+const STACK_COLORS = ['#34d399', '#60a5fa', '#fbbf24', '#c084fc', '#f87171'];
+function renderStack(langs) {
+  const bar = document.getElementById('stack-bar');
+  const list = document.getElementById('stack-list');
+  bar.innerHTML = '';
+  list.innerHTML = '';
+  
+  if (!langs || langs.length === 0) return;
+
+  langs.forEach((l, i) => {
+    const color = STACK_COLORS[i % STACK_COLORS.length];
+    const seg = document.createElement('div');
+    seg.className = 'stack-segment';
+    seg.style.width = `${l.percentage}%`;
+    seg.style.background = color;
+    bar.appendChild(seg);
+    const item = document.createElement('div');
+    item.className = 'stack-item';
+    item.innerHTML = `
+      <span class="stack-dot" style="background:${color}"></span>
+      <span class="name">${l.name}</span>
+      <span class="pct">${l.percentage}%</span>
+    `;
+    list.appendChild(item);
+  });
+}
+
+const LANG_COLORS = {
+  TypeScript: '#3178c6', JavaScript: '#f1e05a', Python: '#3572A5', Rust: '#dea584', Go: '#00ADD8',
+  Java: '#b07219', 'C++': '#f34b7d', C: '#555555', Ruby: '#701516', PHP: '#4F5D95', Swift: '#F05138',
+  Kotlin: '#A97BFF', Dart: '#00B4AB', Scala: '#c22d32', Shell: '#89e051', HTML: '#e34c26', CSS: '#563d7c',
+  Vue: '#41b883', Svelte: '#ff3e00', 'Jupyter Notebook': '#DA5B0B', Lua: '#000080', Haskell: '#5e5086',
+  Elixir: '#6e4a7e', Clojure: '#db5855', Zig: '#ec915c', Nix: '#7e7eff', OCaml: '#3be133',
+};
+
+const INITIAL_REPOS = 8;
+let _allRepos = [];
+let _reposExpanded = false;
+let _repoSort = 'commits'; // 'commits' | 'stars'
+
+function applyOrgVisibility(isOrg) {
+  // Hide sections that don't apply to organizations
+  const orgHideIds = ['graph-wrap', 'radar-section', 'persona-section', 'loc-note', 'periods'];
+  const orgHideClasses = ['stats-row', 'quality-grid']; // contribution stats row and quality metrics
+  orgHideIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isOrg ? 'none' : '';
+  });
+  orgHideClasses.forEach(cls => {
+    document.querySelectorAll('.' + cls).forEach(el => el.style.display = isOrg ? 'none' : '');
+  });
+  // For orgs, hide contribution-specific breakdown stats and custom range
+  if (isOrg) {
+    const breakdown = document.querySelector('.breakdown');
+    if (breakdown) breakdown.style.display = 'none';
+    const customRange = document.getElementById('custom-range');
+    if (customRange) customRange.style.display = 'none';
+  }
+}
+
+function sortRepos(repos) {
+  const sorted = [...repos];
+  if (_repoSort === 'stars') {
+    sorted.sort((a, b) => (b.stargazerCount || 0) - (a.stargazerCount || 0));
+  } else {
+    sorted.sort((a, b) => (b.contributionCount || 0) - (a.contributionCount || 0));
+  }
+  return sorted;
+}
+
+function renderRepos(repos, resetExpanded = false) {
+  const list = document.getElementById('repo-list');
+  list.innerHTML = '';
+  _allRepos = repos || [];
+  if (resetExpanded) _reposExpanded = false;
+  if (_allRepos.length === 0) return;
+
+  const sorted = sortRepos(_allRepos);
+
+  const isOrg = S.lastData?.isOrganization;
+  const showing = _reposExpanded ? sorted : sorted.slice(0, INITIAL_REPOS);
+  showing.forEach(r => {
+    const item = document.createElement('a');
+    item.className = 'repo-item';
+    item.href = `https://github.com/${r.nameWithOwner}`;
+    item.target = '_blank';
+    item.rel = 'noopener noreferrer';
+    const langColor = LANG_COLORS[r.primaryLanguage] || '#5c5c66';
+    const starSvg = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>`;
+    const clockSvg = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 000 8zm7.5 0a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0zM8 3.25a.75.75 0 01.75.75v3.69l2.28 2.28a.75.75 0 11-1.06 1.06L7.47 8.03a.75.75 0 01-.22-.53V4A.75.75 0 018 3.25z"/></svg>`;
+    const lawSvg = `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.75.75a.75.75 0 00-1.5 0V2h-.984c-.305 0-.604.08-.869.23l-1.288.737A.25.25 0 013.984 3H1.75a.75.75 0 000 1.5h.427L.666 7.132a.25.25 0 00.025.414l.462.307a.75.75 0 00.914-.064l1.557-1.396V14.25a.75.75 0 001.5 0V9.606l1.557 1.396a.75.75 0 00.914.064l.462-.307a.25.25 0 00.025-.414L7.823 4.5h.427a.75.75 0 000-1.5H5.516a.25.25 0 01-.109-.025L4.12 2.23A.25.25 0 014.234 2h5.032a.25.25 0 01.109.025l1.287.737a.75.75 0 01.914.064l.462.307a.25.25 0 01-.025.414L10.823 4.5h.427a.75.75 0 000-1.5H8.75V.75z"/></svg>`;
+
+    const timeAgo = r.updatedAt ? timeSince(new Date(r.updatedAt)) : '';
+    item.innerHTML = `
+      <div class="repo-row-top">
+        <span class="repo-lang-dot" style="background:${r.primaryLanguage ? langColor : 'transparent'}"></span>
+        <span class="repo-name">${r.nameWithOwner}</span>
+        ${!isOrg && r.stargazerCount > 0 ? `<span class="repo-stars">${starSvg}${r.stargazerCount.toLocaleString()}</span>` : ''}
+        <span class="repo-contribs${isOrg ? ' stars-badge' : ''}">${isOrg ? '★ ' + r.stargazerCount.toLocaleString() : r.contributionCount}</span>
+      </div>
+      ${r.description ? `<div class="repo-desc">${escapeHtml(r.description)}</div>` : ''}
+      <div class="repo-row-meta">
+        ${r.primaryLanguage ? `<span class="repo-meta lang-meta" style="color:${langColor}">${escapeHtml(r.primaryLanguage)}</span>` : ''}
+        ${r.licenseSpdxId ? `<span class="repo-meta">${lawSvg}${escapeHtml(r.licenseSpdxId)}</span>` : ''}
+        ${timeAgo ? `<span class="repo-meta">${clockSvg}Updated ${timeAgo}</span>` : ''}
+      </div>
+    `;
+    list.appendChild(item);
+  });
+
+  // Show more button
+  const existing = document.getElementById('btn-show-more-repos');
+  if (existing) existing.remove();
+  if (_allRepos.length > INITIAL_REPOS && !_reposExpanded) {
+    const btn = document.createElement('button');
+    btn.className = 'show-more-btn';
+    btn.id = 'btn-show-more-repos';
+    btn.textContent = `show ${_allRepos.length - INITIAL_REPOS} more`;
+    btn.addEventListener('click', () => {
+      _reposExpanded = true;
+      renderRepos(_allRepos);
+    });
+    list.parentNode.appendChild(btn);
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function timeSince(date) {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+function renderPersona(hours) {
+  console.log('[Persona] Rendering with data:', hours);
+  const graph = document.getElementById('hour-graph');
+  const tag = document.getElementById('persona-tag');
+  const timeDisplay = document.getElementById('persona-time');
+  graph.innerHTML = '';
+  
+  if (!hours || hours.length === 0) {
+    console.warn('[Persona] No hours data received');
+    return;
+  }
+
+  const currentMax = Math.max(...hours, 0);
+  const scaleMax = currentMax || 1;
+  
+  hours.forEach((h, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'hour-bar';
+    const hPct = (h / scaleMax) * 100;
+
+    const isActive = currentMax > 0 && h >= currentMax * 0.4;
+    // Use 10% as a baseline for inactive, 20% for active
+    const finalHeight = isActive ? Math.max(hPct, 20) : Math.max(hPct, 10);
+    bar.style.height = `${finalHeight}%`;
+    if (isActive) bar.classList.add('active');
+    
+    // Live time display on hover
+    bar.addEventListener('mouseenter', () => {
+      const ampm = i < 12 ? 'am' : 'pm';
+      const displayHour = i % 12 === 0 ? 12 : i % 12;
+      timeDisplay.textContent = `${h} events at ${displayHour}${ampm}`;
+      timeDisplay.classList.add('show');
+    });
+    bar.addEventListener('mouseleave', () => {
+      timeDisplay.classList.remove('show');
+    });
+    
+    graph.appendChild(bar);
+  });
+  console.log(`[Persona] Rendered ${graph.children.length} bars`);
+
+  // Refined persona logic
+  const night = hours.slice(22, 24).reduce((a, b) => a + b, 0) + hours.slice(0, 5).reduce((a, b) => a + b, 0);
+  const morning = hours.slice(6, 11).reduce((a, b) => a + b, 0);
+  const midday = hours.slice(11, 16).reduce((a, b) => a + b, 0);
+  const evening = hours.slice(17, 22).reduce((a, b) => a + b, 0);
+
+  const total = hours.reduce((a, b) => a + b, 0);
+  if (total === 0) {
+    tag.textContent = 'quiet researcher';
+    return;
+  }
+
+  const scores = [
+    { label: 'night owl ☾', val: night },
+    { label: 'early bird ☀', val: morning },
+    { label: 'midday maker ⚙', val: midday },
+    { label: 'evening coder ⚡', val: evening }
+  ].sort((a, b) => b.val - a.val);
+
+  tag.textContent = scores[0].label;
 }
 
 // ─── Radar chart ──────────────────────────────────
@@ -913,7 +1758,9 @@ async function load() {
   errEl.style.display = 'none';
   const btn = document.getElementById('btn-go');
   btn.disabled = true;
-  btn.textContent = '...';
+  const loaders = Array.from({length: 11}, (_, i) => `loader-${i + 1}`);
+  const pick = loaders[Math.floor(Math.random() * loaders.length)];
+  btn.innerHTML = `<div class="loader ${pick}"></div>`;
 
   S.user = user;
   S.period = '1Y';
@@ -931,11 +1778,16 @@ async function load() {
     document.getElementById('landing').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
 
-    renderProfile({ ...profile, avatarUrl: contrib.avatarUrl || profile.avatarUrl });
+    renderProfile({ ...profile, avatarUrl: contrib.avatarUrl || profile.avatarUrl, isOrganization: contrib.isOrganization });
     renderYearButtons(S.createdAt);
+    applyOrgVisibility(contrib.isOrganization);
     renderSummary(contrib);
     renderGraph(contrib.calendar);
     renderRadar(contrib);
+    renderStack(contrib.languages);
+    renderPersona(contrib.productiveHours);
+    renderQuality(contrib);
+    renderRepos(contrib.contributedRepos, true);
     animateNum('s-total', contrib.totalContributions);
     animateNum('s-add', contrib.totalLinesAdded);
     animateNum('s-del', contrib.totalLinesDeleted);
@@ -946,7 +1798,61 @@ async function load() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'go';
+    btn.innerHTML = 'go';
+  }
+}
+
+async function refreshData() {
+  const btn = document.getElementById('btn-refresh');
+  if (!btn || btn.classList.contains('spinning')) return;
+  
+  btn.classList.add('spinning');
+  
+  // Show LOC as loading
+  document.getElementById('s-add').classList.add('pulsing');
+  document.getElementById('s-del').classList.add('pulsing');
+  document.getElementById('loc-loading').textContent = 'refreshing…';
+
+  try {
+    const p = S.period;
+    let contrib;
+    if (p === '1Y') {
+      const r = await fetch(`${API}/api/user/${S.user}/contributions?refresh=true`);
+      if (!r.ok) throw new Error('Refresh failed');
+      contrib = await r.json();
+    } else if (p.startsWith('year:')) {
+      const { from, to } = yearDates(p.slice(5));
+      const params = new URLSearchParams({ from, to, refresh: 'true' });
+      const r = await fetch(`${API}/api/user/${S.user}/stats?${params}`);
+      if (!r.ok) throw new Error('Refresh failed');
+      contrib = await r.json();
+    } else {
+      const { from, to } = periodDates(p);
+      const params = new URLSearchParams({ from, to, refresh: 'true' });
+      const r = await fetch(`${API}/api/user/${S.user}/stats?${params}`);
+      if (!r.ok) throw new Error('Refresh failed');
+      contrib = await r.json();
+    }
+
+    S.lastData = contrib;
+    renderSummary(contrib);
+    renderGraph(contrib.calendar);
+    renderRadar(contrib);
+    renderStack(contrib.languages);
+    renderPersona(contrib.productiveHours);
+    renderQuality(contrib);
+    renderRepos(contrib.contributedRepos, true);
+    animateNum('s-total', contrib.totalContributions);
+    animateNum('s-add', contrib.totalLinesAdded);
+    animateNum('s-del', contrib.totalLinesDeleted);
+    renderBreakdown(contrib);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    btn.classList.remove('spinning');
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = '';
   }
 }
 
@@ -1006,6 +1912,10 @@ async function changePeriod(p) {
     renderSummary(contrib);
     renderGraph(contrib.calendar);
     renderRadar(contrib);
+    renderStack(contrib.languages);
+    renderPersona(contrib.productiveHours);
+    renderQuality(contrib);
+    renderRepos(contrib.contributedRepos, true);
     graphWrap.style.opacity = '1';
     animateNum('s-total', contrib.totalContributions);
     animateNum('s-add', contrib.totalLinesAdded);
@@ -1058,6 +1968,10 @@ async function applyCustom() {
     renderSummary(contrib);
     renderGraph(contrib.calendar);
     renderRadar(contrib);
+    renderStack(contrib.languages);
+    renderPersona(contrib.productiveHours);
+    renderQuality(contrib);
+    renderRepos(contrib.contributedRepos, true);
     graphWrap.style.opacity = '1';
     animateNum('s-total', contrib.totalContributions);
     animateNum('s-add', contrib.totalLinesAdded);
@@ -1084,14 +1998,32 @@ document.querySelectorAll('.period-btn').forEach(b => {
 });
 
 document.getElementById('btn-apply').addEventListener('click', applyCustom);
+
+// Repo sort toggle
+document.querySelectorAll('.repo-sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    _repoSort = btn.dataset.sort;
+    document.querySelectorAll('.repo-sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderRepos(_allRepos);
+  });
+});
 document.getElementById('btn-back').addEventListener('click', () => {
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('landing').style.display = 'flex';
-  ['s-total','s-add','s-del','s-commits','s-prs','s-issues','s-reviews','s-repos'].forEach(id => {
+  applyOrgVisibility(false); // reset org visibility for next lookup
+  ['s-total','s-add','s-del','s-commits','s-prs','s-issues','s-reviews','s-newrepos','s-private','s-repos','s-stars','s-merge','s-depth'].forEach(id => {
     document.getElementById(id).textContent = '—';
   });
   document.getElementById('radar-wrap').innerHTML = '';
   document.getElementById('radar-details').innerHTML = '';
+  document.getElementById('stack-bar').innerHTML = '';
+  document.getElementById('stack-list').innerHTML = '';
+  document.getElementById('hour-graph').innerHTML = '';
+  document.getElementById('persona-tag').textContent = '—';
+  document.getElementById('repo-list').innerHTML = '';
+  _repoSort = 'commits';
+  document.querySelectorAll('.repo-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === 'commits'));
   // Reset year buttons
   document.getElementById('year-buttons').innerHTML = '';
   document.getElementById('year-divider').style.display = 'none';

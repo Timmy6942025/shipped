@@ -8,6 +8,7 @@ export interface GitHubUser {
   bio: string | null;
   location: string | null;
   created_at: string;
+  type: 'User' | 'Organization';
 }
 
 export interface GitHubRepo {
@@ -44,12 +45,41 @@ export interface ContributionsData {
       totalPullRequestContributions: number;
       totalIssueContributions: number;
       totalPullRequestReviewContributions: number;
-      commitContributionsByRepository: Array<{
+      totalRepositoryContributions: number;
+      totalRepositoryContributionsByRepository: Array<{
         repository: { nameWithOwner: string };
+      }>;
+      restrictedContributionsCount: number;
+      commitContributionsByRepository: Array<{
+        repository: {
+          nameWithOwner: string;
+          stargazerCount: number;
+          description: string | null;
+          updatedAt: string;
+          licenseInfo: { spdxId: string; name: string } | null;
+          languages: {
+            edges: Array<{
+              size: number;
+              node: { name: string };
+            }>;
+          };
+        };
         contributions: { totalCount: number };
       }>;
       pullRequestContributionsByRepository: Array<{
-        repository: { nameWithOwner: string };
+        repository: {
+          nameWithOwner: string;
+          stargazerCount: number;
+          description: string | null;
+          updatedAt: string;
+          licenseInfo: { spdxId: string; name: string } | null;
+          languages: {
+            edges: Array<{
+              size: number;
+              node: { name: string };
+            }>;
+          };
+        };
         contributions: { totalCount: number };
       }>;
       pullRequestContributions: {
@@ -59,12 +89,46 @@ export interface ContributionsData {
         };
         nodes: Array<{
           pullRequest: {
+            createdAt: string;
+            merged: boolean;
+            closed: boolean;
             additions: number;
             deletions: number;
             repository: { nameWithOwner: string };
           };
         }>;
       };
+      issueContributions: {
+        nodes: Array<{
+          issue: {
+            createdAt: string;
+          };
+        }>;
+      };
+    };
+  };
+}
+
+export interface OrganizationData {
+  organization: {
+    login: string;
+    name: string | null;
+    avatarUrl: string;
+    repoList: {
+      totalCount: number;
+      nodes: Array<{
+        nameWithOwner: string;
+        stargazerCount: number;
+        description: string | null;
+        updatedAt: string;
+        licenseInfo: { spdxId: string; name: string } | null;
+        languages: {
+          edges: Array<{
+            size: number;
+            node: { name: string };
+          }>;
+        };
+      }>;
     };
   };
 }
@@ -79,6 +143,9 @@ export interface PRContributionsPageData {
         };
         nodes: Array<{
           pullRequest: {
+            createdAt: string;
+            merged: boolean;
+            closed: boolean;
             additions: number;
             deletions: number;
             repository: { nameWithOwner: string };
