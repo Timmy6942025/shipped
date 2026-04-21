@@ -53,7 +53,6 @@
       letter-spacing: -0.06em;
       line-height: 1;
     }
-    #landing h1 .red-i { color: var(--neg); }
     #landing h1 .dot { color: var(--accent); }
  
     #landing .tagline {
@@ -995,7 +994,7 @@
 
   <!-- ═══ Landing ═══ -->
   <div id="landing">
-    <h1>sh<span class="red-i">i</span>pped<span class="dot">.</span></h1>
+    <h1>shipped<span class="dot" id="logo-dot">.</span></h1>
     <p class="tagline">see what they've shipped</p>
     <div class="inputs">
       <input id="inp-user" placeholder="github username" autocomplete="off" spellcheck="false" />
@@ -1990,6 +1989,14 @@ async function applyCustom() {
 }
 
 // ─── Events ──────────────────────────────────────
+// Random dot color on load
+(function() {
+  const dot = document.getElementById('logo-dot');
+  if (dot) {
+    dot.style.color = Math.random() > 0.5 ? 'var(--accent)' : 'var(--neg)';
+  }
+})();
+
 document.getElementById('btn-go').addEventListener('click', load);
 document.getElementById('inp-user').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
 
