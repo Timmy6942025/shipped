@@ -197,6 +197,27 @@
       margin: 0 0.3rem;
       flex-shrink: 0;
     }
+    .years-expand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      overflow: hidden;
+      max-width: 0;
+      transition: max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .years-expand.expanded {
+      max-width: 600px;
+    }
+    .years-expand .period-btn {
+      opacity: 0;
+      transform: translateX(-8px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      white-space: nowrap;
+    }
+    .years-expand.expanded .period-btn {
+      opacity: 1;
+      transform: translateX(0);
+    }
     .year-more-btn {
       background: transparent;
       border: none;
@@ -206,43 +227,22 @@
       font-weight: 400;
       padding: 0.35rem 0.5rem;
       cursor: pointer;
-      transition: color 0.12s, background 0.12s;
+      transition: color 0.12s, background 0.12s, transform 0.2s;
       border-radius: 2px;
       letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
     }
     .year-more-btn:hover { color: var(--text-sec); }
-    .year-dropdown {
-      display: none;
-      position: absolute;
-      top: 100%;
-      right: 0;
-      background: var(--surface-hi);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 0.3rem 0;
-      z-index: 50;
-      min-width: 80px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      max-height: 240px;
-      overflow-y: auto;
+    .year-more-btn .arrow {
+      display: inline-block;
+      transition: transform 0.3s ease;
+      font-size: 0.55rem;
     }
-    .year-dropdown.show { display: block; }
-    .year-dropdown .dd-btn {
-      display: block;
-      width: 100%;
-      background: transparent;
-      border: none;
-      color: var(--text-sec);
-      font-family: var(--font);
-      font-size: 0.6rem;
-      font-weight: 400;
-      padding: 0.3rem 0.6rem;
-      text-align: left;
-      cursor: pointer;
-      transition: background 0.1s, color 0.1s;
+    .year-more-btn.expanded .arrow {
+      transform: rotate(180deg);
     }
-    .year-dropdown .dd-btn:hover { background: var(--surface); color: var(--text); }
-    .year-dropdown .dd-btn.active { color: var(--accent); font-weight: 600; }
     .period-btn {
       background: transparent;
       border: none;
@@ -1019,8 +1019,10 @@
       <button class="period-btn" data-p="custom">CUSTOM</button>
       <span class="year-divider" id="year-divider" style="display:none"></span>
       <span id="year-buttons"></span>
-      <button class="year-more-btn" id="year-more" style="display:none">▼ more</button>
-      <div class="year-dropdown" id="year-dropdown"></div>
+      <span class="years-expand" id="years-expand"></span>
+      <button class="year-more-btn" id="year-more" style="display:none">
+        <span class="arrow">▼</span>
+      </button>
     </div>
 
     <div class="custom-range" id="custom-range">
@@ -1699,10 +1701,10 @@ function renderYearButtons(createdAt) {
   const divider = document.getElementById('year-divider');
   divider.style.display = 'inline-block';
 
-  // Show the most recent 3 years as inline buttons, rest in dropdown
-  const INLINE_COUNT = 3;
+  // Show the most recent year as inline button, rest in expandable section
+  const INLINE_COUNT = 1;
   const inlineYears = years.slice(0, INLINE_COUNT);
-  const dropdownYears = years.slice(INLINE_COUNT);
+  const expandableYears = years.slice(INLINE_COUNT);
 
   const btnSpan = document.getElementById('year-buttons');
   btnSpan.innerHTML = '';
@@ -1715,35 +1717,35 @@ function renderYearButtons(createdAt) {
     btnSpan.appendChild(btn);
   });
 
+  // Build expandable years section
+  const expandSpan = document.getElementById('years-expand');
+  expandSpan.innerHTML = '';
+  expandableYears.forEach((y, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'period-btn';
+    btn.dataset.p = `year:${y}`;
+    btn.textContent = y;
+    btn.style.transitionDelay = `${i * 40}ms`;
+    btn.addEventListener('click', () => changePeriod(`year:${y}`));
+    expandSpan.appendChild(btn);
+  });
+
+  // Setup expand/collapse button
   const moreBtn = document.getElementById('year-more');
-  const dropdown = document.getElementById('year-dropdown');
-  if (dropdownYears.length > 0) {
-    moreBtn.style.display = 'inline-block';
-    dropdown.innerHTML = '';
-    dropdownYears.forEach(y => {
-      const btn = document.createElement('button');
-      btn.className = 'dd-btn';
-      btn.dataset.p = `year:${y}`;
-      btn.textContent = y;
-      btn.addEventListener('click', () => {
-        dropdown.classList.remove('show');
-        changePeriod(`year:${y}`);
-      });
-      dropdown.appendChild(btn);
-    });
-    moreBtn.onclick = (e) => {
-      e.stopPropagation();
-      dropdown.classList.toggle('show');
+  let yearsExpanded = false;
+  
+  if (expandableYears.length > 0) {
+    moreBtn.style.display = 'inline-flex';
+    moreBtn.onclick = () => {
+      yearsExpanded = !yearsExpanded;
+      expandSpan.classList.toggle('expanded', yearsExpanded);
+      moreBtn.classList.toggle('expanded', yearsExpanded);
+      moreBtn.querySelector('.arrow').textContent = yearsExpanded ? '▲' : '▼';
     };
   } else {
     moreBtn.style.display = 'none';
   }
 }
-
-// Close dropdown when clicking outside
-document.addEventListener('click', () => {
-  document.getElementById('year-dropdown').classList.remove('show');
-});
 
 async function load() {
   const user = document.getElementById('inp-user').value.trim();
@@ -1872,10 +1874,7 @@ function updateActivePeriod(p) {
   document.querySelectorAll('.period-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.p === p)
   );
-  // Update dropdown active states
-  document.querySelectorAll('#year-dropdown .dd-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.p === p)
-  );
+
 }
 
 async function changePeriod(p) {
@@ -2026,9 +2025,12 @@ document.getElementById('btn-back').addEventListener('click', () => {
   document.querySelectorAll('.repo-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === 'commits'));
   // Reset year buttons
   document.getElementById('year-buttons').innerHTML = '';
+  document.getElementById('years-expand').innerHTML = '';
+  document.getElementById('years-expand').classList.remove('expanded');
   document.getElementById('year-divider').style.display = 'none';
   document.getElementById('year-more').style.display = 'none';
-  document.getElementById('year-dropdown').innerHTML = '';
+  document.getElementById('year-more').classList.remove('expanded');
+  document.getElementById('year-more').querySelector('.arrow').textContent = '▼';
   S.createdAt = null;
   S.accountYear = null;
 });
