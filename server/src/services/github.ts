@@ -6,23 +6,18 @@ import type {
   ContributionsData,
   OrganizationData,
   PRContributionsPageData,
-  RepoStatsData,
 } from '../types/github.js';
 import type { UserStats, ContributionDay } from '../types/index.js';
 
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
 const GITHUB_REST_URL = 'https://api.github.com';
 
-// Max repos to fetch LOC for (prevents extreme rate limit usage)
-const MAX_LOC_REPOS = 10;
-// Max commits per repo to fetch stats for
-const MAX_COMMIT_STATS = 100;
-// Batch size for parallel repo LOC fetching
+// Batch size for parallel repo LOC fetching (respects rate limits)
 const LOC_BATCH_SIZE = 10;
 // Delay between batches to respect rate limits
-const LOC_BATCH_DELAY_MS = 100;
+const LOC_BATCH_DELAY_MS = 50;
 // Batch size for parallel commit stats within a repo
-const STATS_BATCH_SIZE = 20;
+const STATS_BATCH_SIZE = 25;
 
 // GraphQL query for contribution calendar + contributed repositories + PR LOC
 const CONTRIBUTIONS_QUERY = `
@@ -399,13 +394,12 @@ export async function getUserContributions(
   // Fetch PR metadata (timestamps, merged/closed counts) - paginate only if needed
   const prMetadata = await collectPRMetadataFromCollection(username, from, to, collection);
 
-  // PARALLEL: Fetch LOC data for top repos concurrently (with batching)
-  const topRepos = contributedRepos.slice(0, MAX_LOC_REPOS);
-  console.log(`[Performance] Fetching LOC for top ${topRepos.length} repos`);
+  // PARALLEL: Fetch LOC data for ALL repos concurrently (with batching)
+  console.log(`[Performance] Fetching LOC for ${contributedRepos.length} repos`);
   
   const linesData = await getLinesShippedBatched(
     username, 
-    topRepos, 
+    contributedRepos, 
     prMetadata.locByRepo, 
     new Date(from), 
     new Date(to)
@@ -634,7 +628,7 @@ async function listUserCommits(
 ): Promise<Array<{ sha: string; date: string }>> {
   const commits: Array<{ sha: string; date: string }> = [];
   let page = 1;
-  const MAX_PAGES = 3; // Reduced for performance
+  const MAX_PAGES = 10; // Full pagination for accuracy
 
   while (page <= MAX_PAGES) {
     try {
@@ -710,12 +704,9 @@ async function getCommitLocForRepo(
   let deleted = 0;
 
   try {
-    // Only fetch stats for first MAX_COMMIT_STATS commits
-    const statsBatch = commits.slice(0, MAX_COMMIT_STATS);
-    
-    // Batch the stats requests
-    for (let i = 0; i < statsBatch.length; i += STATS_BATCH_SIZE) {
-      const batch = statsBatch.slice(i, i + STATS_BATCH_SIZE);
+    // Batch the stats requests for ALL commits
+    for (let i = 0; i < commits.length; i += STATS_BATCH_SIZE) {
+      const batch = commits.slice(i, i + STATS_BATCH_SIZE);
       const statsResults = await Promise.allSettled(
         batch.map(c => getCommitStats(owner, repo, c.sha))
       );
