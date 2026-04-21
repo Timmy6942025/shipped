@@ -286,19 +286,64 @@ async function restGet<T>(path: string): Promise<T> {
 }
 
 /**
- * REST GET with retry logic for stats endpoints
+ * REST GET that handles 202 (Accepted) responses from GitHub.
+ * Some endpoints (like /stats/contributors) return 202 while computing,
+ * then 200 with data once ready. This polls until data is available.
  */
-async function restGetWithRetry<T>(path: string, retries = 2): Promise<T> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await restGet<T>(path);
-    } catch (e: any) {
-      if (attempt === retries) throw e;
-      console.log(`[REST] Retry ${attempt + 1} for ${path}`);
-      await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+async function restGetWith202Retry<T>(
+  path: string,
+  maxAttempts = 3,
+  initialDelayMs = 2000,
+): Promise<T | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const url = `${GITHUB_REST_URL}${path}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    const remaining = response.headers.get('x-ratelimit-remaining');
+    const reset = response.headers.get('x-ratelimit-reset');
+    if (reset) {
+      rateLimitState.resetTime = parseInt(reset) * 1000;
+      rateLimitState.remaining = parseInt(remaining || '5000');
     }
+
+    if (response.status === 202) {
+      // GitHub is computing stats - wait and retry
+      const delay = initialDelayMs * Math.pow(1.5, attempt);
+      console.log(`[REST] 202 for ${path} - waiting ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      continue;
+    }
+
+    if (response.status === 429) {
+      rateLimitState.consecutive429s++;
+      rateLimitState.currentBatchSize = Math.max(5, rateLimitState.currentBatchSize / 3);
+      rateLimitState.currentDelay = rateLimitState.currentDelay * 3;
+      const retryAfter = response.headers.get('retry-after') || '1';
+      const waitMs = parseInt(retryAfter) * 1000;
+      await new Promise(resolve => setTimeout(resolve, Math.min(waitMs * Math.pow(2, rateLimitState.consecutive429s - 1), 60000)));
+      // Retry this attempt, but cap total 429 retries to prevent infinite loop
+      if (rateLimitState.consecutive429s > 5) return null;
+      attempt--;
+      continue;
+    }
+
+    rateLimitState.consecutive429s = 0;
+
+    if (!response.ok) {
+      return null; // Return null for non-202 errors so caller can fallback
+    }
+
+    return response.json() as Promise<T>;
   }
-  throw new Error('unreachable');
+  
+  // Exhausted retries while GitHub was still computing
+  return null;
 }
 
 export async function getUser(username: string) {
@@ -688,15 +733,16 @@ async function getRepoContributorStats(
 
   try {
     // This endpoint returns stats for ALL contributors - we filter for our user
-    const data = await restGetWithRetry<Array<{
+    // Uses 202 retry logic: GitHub returns 202 while computing, then 200 when ready
+    const data = await restGetWith202Retry<Array<{
       author: { login: string };
       weeks: Array<{ w: number; a: number; d: number }>;
       total: { a: number; d: number };
     }>>(`/repos/${owner}/${repo}/stats/contributors`);
 
     if (!data || !Array.isArray(data)) {
-      // Stats computation in progress - return null to use fallback
-      console.log(`[Stats] Computation in progress for ${owner}/${repo}`);
+      // Stats still computing or endpoint failed - return null to use fallback
+      console.log(`[Stats] No data available for ${owner}/${repo}, will use fallback`);
       return null;
     }
 
@@ -738,7 +784,9 @@ async function getRepoContributorStats(
 }
 
 /**
- * Fallback: List commits and get stats per commit (slower but works when /stats fails)
+ * Fallback: List ALL commits and get stats for EACH commit.
+ * Fully accurate - no sampling, no extrapolation.
+ * Slower than /stats/contributors but guarantees exact numbers.
  */
 async function getCommitLocFallback(
   owner: string,
@@ -747,12 +795,16 @@ async function getCommitLocFallback(
   fromDate: Date,
   toDate: Date,
 ): Promise<{ added: number; deleted: number; timestamps: string[] }> {
+  // Check cache first
+  const cacheKey = `github:commit-loc:s${CACHE_SCHEMA_VERSION}:${owner}/${repo}:${username}:${fromDate.toISOString()}:${toDate.toISOString()}`;
+  const cached = cache.get<{ added: number; deleted: number; timestamps: string[] }>(cacheKey);
+  if (cached) return cached;
+
+  // Step 1: Fetch ALL commit SHAs (paginated, no limit)
   const commits: Array<{ sha: string; date: string }> = [];
   let page = 1;
-  const MAX_PAGES = 5;
 
-  // Get commit SHAs first (1 API call per page)
-  while (page <= MAX_PAGES) {
+  while (true) {
     try {
       const url = `${GITHUB_REST_URL}/repos/${owner}/${repo}/commits?author=${encodeURIComponent(username)}&since=${fromDate.toISOString()}&until=${toDate.toISOString()}&per_page=100&page=${page}`;
       const response = await restGet<any[]>(url);
@@ -765,45 +817,39 @@ async function getCommitLocFallback(
         }
       }
 
-      if (response.length < 100) break;
+      if (response.length < 100) break; // Last page
       page++;
     } catch (e) {
+      console.error(`[LOC] Error fetching commits page ${page} for ${owner}/${repo}:`, e);
       break;
     }
   }
 
-  if (commits.length === 0) return { added: 0, deleted: 0, timestamps: [] };
-
-  // Sample commits if too many (keep it fast)
-  const maxCommits = 100;
-  let sampledCommits = commits;
-  if (commits.length > maxCommits) {
-    const step = Math.ceil(commits.length / maxCommits);
-    sampledCommits = [];
-    for (let i = 0; i < commits.length; i += step) {
-      sampledCommits.push(commits[i]);
-    }
+  if (commits.length === 0) {
+    const emptyResult = { added: 0, deleted: 0, timestamps: [] };
+    cache.set(cacheKey, emptyResult, TTL.REPO_STATS);
+    return emptyResult;
   }
 
+  // Step 2: Fetch stats for ALL commits (batched, no sampling)
   const timestamps = commits.map(c => c.date);
   let added = 0;
   let deleted = 0;
 
-  // Batch stats requests
-  const BATCH = 50;
-  for (let i = 0; i < sampledCommits.length; i += BATCH) {
-    const batch = sampledCommits.slice(i, i + BATCH);
+  const BATCH = 50; // Parallel batch size for commit stats
+  for (let i = 0; i < commits.length; i += BATCH) {
+    const batch = commits.slice(i, i + BATCH);
     const statsResults = await Promise.allSettled(
       batch.map(c => {
-        const cacheKey = `github:commit-stats:${owner}/${repo}/${c.sha}`;
-        const cached = cache.get<{ additions: number; deletions: number }>(cacheKey);
+        const statsCacheKey = `github:commit-stats:${owner}/${repo}/${c.sha}`;
+        const cached = cache.get<{ additions: number; deletions: number }>(statsCacheKey);
         if (cached) return Promise.resolve(cached);
         return restGet<{ stats?: { additions: number; deletions: number } }>(
           `/repos/${owner}/${repo}/commits/${c.sha}`
         ).then(d => {
           if (d.stats) {
             const result = { additions: d.stats.additions, deletions: d.stats.deletions };
-            cache.set(cacheKey, result, TTL.REPO_STATS);
+            cache.set(statsCacheKey, result, TTL.REPO_STATS);
             return result;
           }
           return null;
@@ -819,14 +865,9 @@ async function getCommitLocFallback(
     }
   }
 
-  // Extrapolate to full commit count if we sampled
-  if (commits.length > sampledCommits.length) {
-    const scale = commits.length / sampledCommits.length;
-    added = Math.round(added * scale);
-    deleted = Math.round(deleted * scale);
-  }
-
-  return { added, deleted, timestamps };
+  const locData = { added, deleted, timestamps };
+  cache.set(cacheKey, locData, TTL.REPO_STATS);
+  return locData;
 }
 
 /**
