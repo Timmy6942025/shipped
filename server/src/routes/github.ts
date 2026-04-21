@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getUser, getUserContributions, getUserRepos, getOrgContributions } from '../services/github.js';
+import { getUser, getUserContributions, getUserRepos, getOrgContributions, getLocStatus } from '../services/github.js';
 import { validateUsername } from '../middleware/validate.js';
 
 const router = Router();
@@ -63,6 +63,20 @@ router.get('/user/:username/stats', validateUsername, async (req, res, next) => 
     
     const data = await getUserContributions(username, fromDate, toDate, forceRefresh);
     res.json({ ...data, createdAt: user.created_at });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/user/:username/loc — polling endpoint for LOC data
+router.get('/user/:username/loc', validateUsername, async (req, res, next) => {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to) {
+      return res.status(400).json({ error: 'Missing required query parameters: from and to (ISO dates)' });
+    }
+    const locData = getLocStatus(req.params.username as string, from as string, to as string);
+    res.json(locData);
   } catch (err) {
     next(err);
   }

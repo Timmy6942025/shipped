@@ -429,6 +429,7 @@ export async function getOrgContributions(
     totalDiscussions: 0,
     totalNewRepos: 0,
     totalPrivateActivity: 0,
+    locStatus: 'ready' as const,
     totalLinesAdded: 0,
     totalLinesDeleted: 0,
     starPower: repoNodes.length > 0 ? Math.round(totalStars / repoNodes.length) : 0,
@@ -437,11 +438,56 @@ export async function getOrgContributions(
     languages,
     productiveHours: new Array(24).fill(0),
     contributedRepos,
+    fromDate: from,
+    toDate: to,
     calendar,
   };
 
   cache.set(cacheKey, result, TTL.CONTRIBUTIONS);
   return result;
+}
+
+// LOC computation tracking - stores background computation state
+const locComputations = new Map<string, {
+  status: 'pending' | 'computing' | 'ready' | 'error';
+  result: { added: number; deleted: number; timestamps: string[] } | null;
+  timestamp: number;
+}>();
+
+// Clean up old LOC computations every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of locComputations) {
+    if (now - val.timestamp > 30 * 60 * 1000) { // 30 min expiry
+      locComputations.delete(key);
+    }
+  }
+}, 10 * 60 * 1000).unref?.();
+
+/**
+ * Get the status of a background LOC computation.
+ * Returns the LOC data if ready, or the current status.
+ */
+export function getLocStatus(
+  username: string,
+  fromDate: string,
+  toDate: string,
+): { status: 'pending' | 'computing' | 'ready' | 'error'; added: number; deleted: number; timestamps: string[] } {
+  const locKey = `${username}:${fromDate}:${toDate}`;
+  const comp = locComputations.get(locKey);
+  if (!comp) {
+    // Check if the full result is cached (LOC was ready)
+    const cacheKey = `github:contributions:s${CACHE_SCHEMA_VERSION}:${username}:${fromDate}:${toDate}`;
+    const cached = cache.get<UserStats>(cacheKey);
+    if (cached && cached.locStatus === 'ready') {
+      return { status: 'ready', added: cached.totalLinesAdded, deleted: cached.totalLinesDeleted, timestamps: [] };
+    }
+    return { status: 'pending', added: 0, deleted: 0, timestamps: [] };
+  }
+  if (comp.status === 'ready' && comp.result) {
+    return { status: 'ready', ...comp.result };
+  }
+  return { status: comp.status, added: 0, deleted: 0, timestamps: [] };
 }
 
 export async function getUserContributions(
@@ -457,6 +503,15 @@ export async function getUserContributions(
   const cacheKey = `github:contributions:s${CACHE_SCHEMA_VERSION}:${username}:${from}:${to}`;
   const cached = cache.get<UserStats>(cacheKey);
   if (cached && !forceRefresh) return cached;
+
+  // On force refresh, invalidate LOC caches too
+  if (forceRefresh) {
+    const locCacheKey = `github:lines-shipped:s${CACHE_SCHEMA_VERSION}:${username}:${new Date(from).toISOString()}:${new Date(to).toISOString()}`;
+    cache.delete(locCacheKey);
+    // Remove from locComputations so background state is reset
+    const locKey = `${username}:${from}:${to}`;
+    locComputations.delete(locKey);
+  }
 
   console.log(`[Performance] Starting fetch for ${username}`);
 
@@ -488,19 +543,6 @@ export async function getUserContributions(
   // Fetch PR metadata (timestamps, merged/closed counts) - paginate only if needed
   const prMetadata = await collectPRMetadataFromCollection(username, from, to, collection);
 
-  // PARALLEL: Fetch LOC data for ALL repos concurrently (with batching)
-  console.log(`[Performance] Fetching LOC for ${contributedRepos.length} repos`);
-  
-  const linesData = await getLinesShippedBatched(
-    username, 
-    contributedRepos, 
-    prMetadata.locByRepo, 
-    new Date(from), 
-    new Date(to)
-  );
-
-  console.log(`[Performance] Got LOC data for ${username}`);
-
   // Language & Impact analysis
   const langMap = new Map<string, number>();
   let totalStars = 0;
@@ -527,37 +569,73 @@ export async function getUserContributions(
     .filter(l => l.percentage > 0)
     .slice(0, 5);
 
-  // Productive Hours histogram
+  // Productive Hours histogram - use PR timestamps + issue timestamps immediately
   const productiveHours = new Array(24).fill(0);
-  const allTimestamps = [...(prMetadata.timestamps || []), ...(linesData.timestamps || [])];
-  
-  console.log(`[Persona] Processing ${allTimestamps.length} timestamps for ${username}`);
-  
-  allTimestamps.forEach(ts => {
+  const prTimestamps = prMetadata.timestamps || [];
+  prTimestamps.forEach(ts => {
     if (!ts) return;
     const hour = new Date(ts).getUTCHours();
-    if (!isNaN(hour) && hour >= 0 && hour < 24) {
-      productiveHours[hour]++;
-    }
+    if (!isNaN(hour) && hour >= 0 && hour < 24) productiveHours[hour]++;
   });
-  
   const issueNodes = collection.issueContributions?.nodes || [];
   issueNodes.forEach(node => {
     if (node.issue?.createdAt) {
       const hour = new Date(node.issue.createdAt).getUTCHours();
-      if (!isNaN(hour) && hour >= 0 && hour < 24) {
-        productiveHours[hour]++;
-      }
+      if (!isNaN(hour) && hour >= 0 && hour < 24) productiveHours[hour]++;
     }
   });
 
   const totalPRs = collection.totalPullRequestContributions;
+
+  // Check if LOC is already computed and cached
+  const locCacheKey = `github:lines-shipped:s${CACHE_SCHEMA_VERSION}:${username}:${new Date(from).toISOString()}:${new Date(to).toISOString()}`;
+  const cachedLOC = cache.get<{ added: number; deleted: number; timestamps: string[] }>(locCacheKey);
+
+  // Check if LOC computation is already running or ready
+  const locKey = `${username}:${from}:${to}`;
+  const existingComp = locComputations.get(locKey);
+
+  let locStatus: 'ready' | 'pending' | 'computing' = 'pending';
+  let linesData: { added: number; deleted: number; timestamps: string[] } = { added: 0, deleted: 0, timestamps: [] };
+
+  if (cachedLOC) {
+    // LOC already computed and cached
+    linesData = cachedLOC;
+    locStatus = 'ready';
+    // Add commit timestamps to productive hours
+    (linesData.timestamps || []).forEach(ts => {
+      if (!ts) return;
+      const hour = new Date(ts).getUTCHours();
+      if (!isNaN(hour) && hour >= 0 && hour < 24) productiveHours[hour]++;
+    });
+  } else if (existingComp?.status === 'ready' && existingComp.result) {
+    // LOC computation finished
+    linesData = existingComp.result;
+    locStatus = 'ready';
+    (linesData.timestamps || []).forEach(ts => {
+      if (!ts) return;
+      const hour = new Date(ts).getUTCHours();
+      if (!isNaN(hour) && hour >= 0 && hour < 24) productiveHours[hour]++;
+    });
+  } else if (existingComp?.status === 'computing') {
+    // LOC computation in progress
+    locStatus = 'computing';
+  } else {
+    // Start LOC computation in the background
+    locComputations.set(locKey, { status: 'computing', result: null, timestamp: Date.now() });
+    locStatus = 'computing';
+    
+    // Fire and forget - compute LOC in background
+    computeLocBackground(username, from, to, contributedRepos, prMetadata.locByRepo, locKey);
+  }
+
   const result: UserStats = {
     login: ghUser.login,
     name: ghUser.name,
     avatarUrl: ghUser.avatarUrl,
     publicRepos: ghUser.repositories.totalCount,
     followers: ghUser.followers.totalCount,
+    locStatus,
     totalContributions: calendar.totalContributions,
     totalCommits: collection.totalCommitContributions,
     totalPRs,
@@ -576,12 +654,72 @@ export async function getUserContributions(
     contributedRepos: contributedRepos.map(({ owner, name, contributionCount, stargazerCount, primaryLanguage, description, licenseSpdxId, updatedAt }) => ({
       nameWithOwner: `${owner}/${name}`, contributionCount, stargazerCount, primaryLanguage, description, licenseSpdxId, updatedAt,
     })),
+    fromDate: from,
+    toDate: to,
     calendar: contributionDays,
   };
 
+  // Cache the result immediately (even partial) so subsequent requests don't re-fetch from GitHub
   cache.set(cacheKey, result, TTL.CONTRIBUTIONS);
-  console.log(`[Performance] Completed fetch for ${username}`);
+  console.log(`[Performance] Returning ${locStatus} data for ${username}`);
   return result;
+}
+
+/**
+ * Compute LOC in the background. Stores result in locComputations map
+ * and caches it when done.
+ */
+async function computeLocBackground(
+  username: string,
+  from: string,
+  to: string,
+  contributedRepos: Array<{ owner: string; name: string; contributionCount: number }>,
+  prLocByRepo: Map<string, { added: number; deleted: number }>,
+  locKey: string,
+): Promise<void> {
+  try {
+    console.log(`[LOC] Starting background computation for ${username} (${contributedRepos.length} repos)`);
+    const linesData = await getLinesShippedBatched(
+      username, 
+      contributedRepos, 
+      prLocByRepo, 
+      new Date(from), 
+      new Date(to)
+    );
+    console.log(`[LOC] Background computation complete for ${username}: ${linesData.added} added, ${linesData.deleted} deleted`);
+    
+    locComputations.set(locKey, { status: 'ready', result: linesData, timestamp: Date.now() });
+    
+    // Also cache the lines-shipped result so future requests are instant
+    const locCacheKey = `github:lines-shipped:s${CACHE_SCHEMA_VERSION}:${username}:${new Date(from).toISOString()}:${new Date(to).toISOString()}`;
+    cache.set(locCacheKey, linesData, TTL.CONTRIBUTIONS);
+    
+    // Cache the full UserStats result too so future full requests are instant
+    const cacheKey = `github:contributions:s${CACHE_SCHEMA_VERSION}:${username}:${from}:${to}`;
+    const cached = cache.get<UserStats>(cacheKey);
+    if (cached) {
+      cached.totalLinesAdded = linesData.added;
+      cached.totalLinesDeleted = linesData.deleted;
+      cached.locStatus = 'ready';
+      // Re-add commit timestamps to productive hours
+      (linesData.timestamps || []).forEach(ts => {
+        if (!ts) return;
+        const hour = new Date(ts).getUTCHours();
+        if (!isNaN(hour) && hour >= 0 && hour < 24) cached.productiveHours[hour]++;
+      });
+      cache.set(cacheKey, cached, TTL.CONTRIBUTIONS);
+    }
+  } catch (err) {
+    console.error(`[LOC] Background computation failed for ${username}:`, err);
+    locComputations.set(locKey, { status: 'error', result: null, timestamp: Date.now() });
+    // Update the cached partial result to reflect the error
+    const cacheKey = `github:contributions:s${CACHE_SCHEMA_VERSION}:${username}:${from}:${to}`;
+    const cached = cache.get<UserStats>(cacheKey);
+    if (cached) {
+      cached.locStatus = 'error';
+      cache.set(cacheKey, cached, TTL.CONTRIBUTIONS);
+    }
+  }
 }
 
 export async function getUserRepos(username: string) {

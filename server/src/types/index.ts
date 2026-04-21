@@ -23,6 +23,7 @@ export interface UserStats {
   totalDiscussions: number;
   totalNewRepos: number;
   totalPrivateActivity: number;
+  locStatus?: 'ready' | 'pending' | 'computing' | 'error';
   totalLinesAdded: number;
   totalLinesDeleted: number;
   starPower: number; // Average stars of repos contributed to
@@ -39,6 +40,8 @@ export interface UserStats {
     licenseSpdxId: string | null;
     updatedAt: string;
   }>;
+  fromDate?: string;
+  toDate?: string;
   calendar: ContributionDay[];
   createdAt?: string;
 }

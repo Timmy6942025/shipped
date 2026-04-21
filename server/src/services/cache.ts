@@ -62,6 +62,10 @@ export class Cache {
     }
   }
 
+  delete(key: string): boolean {
+    return this.store.delete(key);
+  }
+
   has(key: string): boolean {
     const entry = this.store.get(key);
     if (!entry) return false;
@@ -93,7 +97,7 @@ export const cache = new Cache();
  *  Unversioned (stable shapes):
  *    github:user, github:repos, github:commit-stats
  */
-export const CACHE_SCHEMA_VERSION = 4;
+export const CACHE_SCHEMA_VERSION = 5;
 
 // TTL constants
 export const TTL = {

@@ -1781,6 +1781,125 @@ function renderYearButtons(createdAt) {
   }
 }
 
+// --- Progressive LOC loading ---
+// When LOC is computing in the background, poll until ready
+let _locPollTimer = null;
+
+function getLocDates() {
+  // Use the server's actual from/to dates (stored in S.lastData)
+  // This avoids date mismatch between what the server computed and what we poll for
+  if (S.lastData && S.lastData.fromDate && S.lastData.toDate) {
+    return { from: S.lastData.fromDate, to: S.lastData.toDate };
+  }
+  // Fallback: compute client-side (may have minor mismatch)
+  const p = S.period;
+  if (p.startsWith('year:')) return yearDates(p.slice(5));
+  return periodDates(p);
+}
+
+function renderLocData(locData) {
+  // Update lines added/deleted
+  animateNum('s-add', locData.added);
+  animateNum('s-del', locData.deleted);
+  document.getElementById('s-add').classList.remove('pulsing');
+  document.getElementById('s-del').classList.remove('pulsing');
+  document.getElementById('loc-loading').textContent = '';
+
+  // Update persona histogram with commit timestamps
+  if (S.lastData && locData.timestamps && locData.timestamps.length > 0) {
+    // Add commit timestamps to existing productive hours
+    const hours = new Array(24).fill(0);
+    // Re-add existing PR/issue timestamps
+    if (S.lastData.productiveHours) {
+      for (let h = 0; h < 24; h++) hours[h] = S.lastData.productiveHours[h] || 0;
+    }
+    // Add commit timestamps
+    locData.timestamps.forEach(ts => {
+      if (!ts) return;
+      const hour = new Date(ts).getUTCHours();
+      if (!isNaN(hour) && hour >= 0 && hour < 24) hours[hour]++;
+    });
+    S.lastData.productiveHours = hours;
+    renderPersona(hours);
+  }
+
+  // Store in lastData
+  if (S.lastData) {
+    S.lastData.totalLinesAdded = locData.added;
+    S.lastData.totalLinesDeleted = locData.deleted;
+    S.lastData.locStatus = 'ready';
+  }
+}
+
+function startLocPolling() {
+  if (_locPollTimer) return; // Already polling
+  const dates = getLocDates();
+  if (!dates) return; // No dates available
+
+  function poll() {
+    const params = new URLSearchParams({ from: dates.from, to: dates.to });
+    const url = `${API}/api/user/${S.user}/loc?${params}`;
+
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'ready') {
+          renderLocData(data);
+          _locPollTimer = null;
+        } else if (data.status === 'error') {
+          // LOC computation failed
+          document.getElementById('s-add').classList.remove('pulsing');
+          document.getElementById('s-del').classList.remove('pulsing');
+          document.getElementById('loc-loading').textContent = 'error';
+          if (S.lastData) S.lastData.locStatus = 'error';
+          _locPollTimer = null;
+        } else {
+          // Still computing - poll again in 3 seconds
+          _locPollTimer = setTimeout(poll, 3000);
+        }
+      })
+      .catch(() => {
+        // Error - retry in 5 seconds
+        _locPollTimer = setTimeout(poll, 5000);
+      });
+  }
+
+  _locPollTimer = setTimeout(poll, 2000); // First poll after 2s
+}
+
+function stopLocPolling() {
+  if (_locPollTimer) {
+    clearTimeout(_locPollTimer);
+    _locPollTimer = null;
+  }
+}
+
+function handleLocStatus(contrib) {
+  if (contrib.locStatus === 'ready') {
+    // LOC data is ready - render immediately
+    animateNum('s-add', contrib.totalLinesAdded);
+    animateNum('s-del', contrib.totalLinesDeleted);
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = '';
+    stopLocPolling();
+  } else if (contrib.locStatus === 'error') {
+    // LOC computation failed
+    document.getElementById('s-add').textContent = '—';
+    document.getElementById('s-del').textContent = '—';
+    document.getElementById('s-add').classList.remove('pulsing');
+    document.getElementById('s-del').classList.remove('pulsing');
+    document.getElementById('loc-loading').textContent = 'error';
+    stopLocPolling();
+  } else {
+    // LOC is computing - show loading state and start polling
+    document.getElementById('s-add').classList.add('pulsing');
+    document.getElementById('s-del').classList.add('pulsing');
+    document.getElementById('loc-loading').textContent = 'computing…';
+    startLocPolling();
+  }
+}
+
 async function load() {
   const user = document.getElementById('inp-user').value.trim();
   const errEl = document.getElementById('landing-error');
@@ -1825,8 +1944,8 @@ async function load() {
     renderQuality(contrib);
     renderRepos(contrib.contributedRepos, true);
     animateNum('s-total', contrib.totalContributions);
-    animateNum('s-add', contrib.totalLinesAdded);
-    animateNum('s-del', contrib.totalLinesDeleted);
+    // Handle LOC - may be computing in background
+    handleLocStatus(contrib);
     renderBreakdown(contrib);
 
   } catch (err) {
@@ -1843,6 +1962,7 @@ async function refreshData() {
   if (!btn || btn.classList.contains('spinning')) return;
   
   btn.classList.add('spinning');
+  stopLocPolling(); // Stop any existing polling
   
   // Show LOC as loading
   document.getElementById('s-add').classList.add('pulsing');
@@ -1879,16 +1999,16 @@ async function refreshData() {
     renderQuality(contrib);
     renderRepos(contrib.contributedRepos, true);
     animateNum('s-total', contrib.totalContributions);
-    animateNum('s-add', contrib.totalLinesAdded);
-    animateNum('s-del', contrib.totalLinesDeleted);
+    // Handle LOC - may be computing in background
+    handleLocStatus(contrib);
     renderBreakdown(contrib);
   } catch (err) {
     console.error(err);
-  } finally {
-    btn.classList.remove('spinning');
     document.getElementById('s-add').classList.remove('pulsing');
     document.getElementById('s-del').classList.remove('pulsing');
     document.getElementById('loc-loading').textContent = '';
+  } finally {
+    btn.classList.remove('spinning');
   }
 }
 
@@ -1919,6 +2039,8 @@ async function changePeriod(p) {
     document.getElementById('range-error').style.display = 'none';
     return;
   }
+
+  stopLocPolling(); // Stop any existing polling
 
   const graphWrap = document.getElementById('graph-wrap');
   graphWrap.style.opacity = '0.4';
@@ -1951,11 +2073,8 @@ async function changePeriod(p) {
     renderRepos(contrib.contributedRepos, true);
     graphWrap.style.opacity = '1';
     animateNum('s-total', contrib.totalContributions);
-    animateNum('s-add', contrib.totalLinesAdded);
-    animateNum('s-del', contrib.totalLinesDeleted);
-    document.getElementById('s-add').classList.remove('pulsing');
-    document.getElementById('s-del').classList.remove('pulsing');
-    document.getElementById('loc-loading').textContent = '';
+    // Handle LOC - may be computing in background
+    handleLocStatus(contrib);
     renderBreakdown(contrib);
   } catch (err) {
     graphWrap.style.opacity = '1';
@@ -2007,11 +2126,8 @@ async function applyCustom() {
     renderRepos(contrib.contributedRepos, true);
     graphWrap.style.opacity = '1';
     animateNum('s-total', contrib.totalContributions);
-    animateNum('s-add', contrib.totalLinesAdded);
-    animateNum('s-del', contrib.totalLinesDeleted);
-    document.getElementById('s-add').classList.remove('pulsing');
-    document.getElementById('s-del').classList.remove('pulsing');
-    document.getElementById('loc-loading').textContent = '';
+    // Handle LOC - may be computing in background
+    handleLocStatus(contrib);
     renderBreakdown(contrib);
   } catch (err) {
     graphWrap.style.opacity = '1';
