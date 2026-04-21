@@ -492,6 +492,28 @@
       gap: 1.5rem;
     }
     .quality-grid .stat .num { font-size: 1.1rem; }
+    
+    /* Info icons */
+    .info-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 12px;
+      height: 12px;
+      font-size: 8px;
+      font-weight: 700;
+      color: var(--text-mut);
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      margin-left: 4px;
+      cursor: help;
+      transition: color 0.15s, background 0.15s;
+    }
+    .info-icon:hover {
+      color: var(--text-sec);
+      background: var(--surface);
+    }
 
     /* Persona Section */
     .persona-section {
@@ -1074,7 +1096,10 @@
       <div class="quality-grid">
         <div class="stat">
           <span class="num" id="s-stars">—</span>
-          <span class="lbl">avg star power</span>
+          <span class="lbl">
+            avg star power
+            <span class="info-icon" id="info-stars" title="Average stargazer count of repositories you contribute to. Higher = you've shipped code in more popular repos.">?</span>
+          </span>
         </div>
         <div class="stat">
           <span class="num" id="s-merge">—</span>
@@ -1082,7 +1107,10 @@
         </div>
         <div class="stat">
           <span class="num" id="s-depth">—</span>
-          <span class="lbl">review depth</span>
+          <span class="lbl">
+            review depth
+            <span class="info-icon" id="info-depth" title="Times your code was reviewed vs times you reviewed others. 1x = balanced, higher = you get more reviews than you give.">?</span>
+          </span>
         </div>
       </div>
     </div>
@@ -1707,8 +1735,8 @@ function renderYearButtons(createdAt) {
   const divider = document.getElementById('year-divider');
   divider.style.display = 'inline-block';
 
-  // Show the most recent year as inline button, rest in expandable section
-  const INLINE_COUNT = 1;
+  // Show the last 3 years inline, rest in expandable section
+  const INLINE_COUNT = 3;
   const inlineYears = years.slice(0, INLINE_COUNT);
   const expandableYears = years.slice(INLINE_COUNT);
 
